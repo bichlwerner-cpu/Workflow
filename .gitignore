@@ -8,10 +8,13 @@ venv/
 
 out/
 output/
+assets/footage/
+assets/music/
 *.mp4
 *.mp3
 *.wav
 *.srt
+*.ass
 
 .DS_Store
 .idea/

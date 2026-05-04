@@ -16,6 +16,9 @@ class Config:
     elevenlabs_voice_id: str
     elevenlabs_model_id: str
     output_dir: Path
+    music_dir: Path
+    footage_dir: Path
+    whisper_model: str
 
     @classmethod
     def load(cls) -> "Config":
@@ -29,6 +32,11 @@ class Config:
         out = Path(os.environ.get("OUTPUT_DIR", "./out")).resolve()
         out.mkdir(parents=True, exist_ok=True)
 
+        music_dir = Path(os.environ.get("MUSIC_DIR", "./assets/music")).resolve()
+        footage_dir = Path(os.environ.get("FOOTAGE_DIR", "./assets/footage")).resolve()
+        music_dir.mkdir(parents=True, exist_ok=True)
+        footage_dir.mkdir(parents=True, exist_ok=True)
+
         return cls(
             anthropic_api_key=anthropic,
             elevenlabs_api_key=eleven,
@@ -41,4 +49,7 @@ class Config:
                 "ELEVENLABS_MODEL_ID", "eleven_multilingual_v2"
             ),
             output_dir=out,
+            music_dir=music_dir,
+            footage_dir=footage_dir,
+            whisper_model=os.environ.get("WHISPER_MODEL", "base"),
         )
