@@ -101,3 +101,100 @@ def script_to_voiceover_text(script: VideoScript) -> str:
     parts.extend(s.voiceover for s in script.sections)
     parts.append(script.call_to_action)
     return "\n\n".join(p.strip() for p in parts if p.strip())
+
+
+def from_text(path: Path) -> VideoScript:
+    """Parse a plain-text script file into a VideoScript.
+
+    Format (alles außer dem Body ist optional):
+
+        # Mein Titel
+        description: Optionale Beschreibung
+        tags: tag1, tag2, tag3
+
+        Erster Absatz wird zum Hook.
+
+        Mittlere Absätze werden zu Sections.
+
+        Letzter Absatz wird zum Call-to-Action.
+
+    Absätze werden durch Leerzeilen getrennt. Bei nur einem Absatz
+    landet alles in einer Section.
+    """
+    raw = path.read_text(encoding="utf-8").strip()
+    if not raw:
+        raise ValueError(f"{path} ist leer.")
+
+    title = path.stem.replace("_", " ").replace("-", " ").strip().title() or "Untitled"
+    description = ""
+    tags: list[str] = []
+
+    lines = raw.splitlines()
+    body_idx = 0
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped:
+            body_idx = i + 1
+            break
+        low = stripped.lower()
+        if stripped.startswith("# "):
+            title = stripped[2:].strip()
+        elif low.startswith("title:"):
+            title = stripped.split(":", 1)[1].strip()
+        elif low.startswith("description:"):
+            description = stripped.split(":", 1)[1].strip()
+        elif low.startswith("tags:"):
+            tags = [
+                t.strip()
+                for t in stripped.split(":", 1)[1].split(",")
+                if t.strip()
+            ]
+        else:
+            body_idx = i
+            break
+    else:
+        body_idx = len(lines)
+
+    body = "\n".join(lines[body_idx:]).strip()
+    paragraphs = [p.strip() for p in body.split("\n\n") if p.strip()]
+    if not paragraphs:
+        raise ValueError(
+            f"{path} enthält keinen Voiceover-Text (nur Header gefunden)."
+        )
+
+    if len(paragraphs) == 1:
+        hook = ""
+        section_paras = [paragraphs[0]]
+        cta = ""
+    elif len(paragraphs) == 2:
+        hook = paragraphs[0]
+        section_paras = []
+        cta = paragraphs[1]
+    else:
+        hook = paragraphs[0]
+        section_paras = paragraphs[1:-1]
+        cta = paragraphs[-1]
+
+    sections = [
+        ScriptSection(heading=f"Section {i + 1}", voiceover=text)
+        for i, text in enumerate(section_paras)
+    ]
+    if not sections:
+        sections = [ScriptSection(heading="Body", voiceover=hook or cta or paragraphs[0])]
+        if len(paragraphs) == 1:
+            hook = ""
+            cta = ""
+
+    if not description:
+        description = title
+    if not tags:
+        tags = [w.lower() for w in title.split() if w][:5]
+
+    return VideoScript(
+        title=title,
+        description=description,
+        tags=tags,
+        hook=hook,
+        sections=sections,
+        call_to_action=cta,
+    )

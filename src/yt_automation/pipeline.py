@@ -1,4 +1,4 @@
-"""End-to-end pipeline: script -> TTS -> (music) -> (captions) -> (footage) -> video."""
+"""Pipeline orchestration."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from .config import Config
 from .script import (
     Style,
     VideoScript,
+    from_text,
     generate_script,
     save_script,
     script_to_voiceover_text,
@@ -33,34 +34,20 @@ class PipelineResult:
     script: VideoScript
 
 
-def run_pipeline(
+def render_from_script(
     cfg: Config,
-    topic: str,
+    script: VideoScript,
     *,
-    duration_seconds: int = 90,
-    style: Style = "explainer",
-    language: str = "de",
     fmt: VideoFormat = VideoFormat.LANDSCAPE,
     background: Path | None = None,
     music: Path | None = None,
     word_captions: bool = False,
+    language: str = "de",
 ) -> PipelineResult:
-    """Run the full pipeline.
-
-    Args:
-        background: Optional path to a footage file or directory; loops/concats
-            to cover the voiceover length. None -> static title card.
-        music: Optional path to a music file. None -> auto-pick from
-            cfg.music_dir if present, else no music.
-        word_captions: If True, run Whisper for word-level ASS captions.
-    """
+    """Take a VideoScript and produce the final MP4."""
     out = cfg.output_dir
     out.mkdir(parents=True, exist_ok=True)
 
-    script = generate_script(
-        cfg, topic,
-        duration_seconds=duration_seconds, style=style, language=language,
-    )
     script_path = out / "script.json"
     save_script(script, script_path)
 
@@ -102,4 +89,48 @@ def run_pipeline(
         audio_path=audio_path,
         video_path=video_path,
         script=script,
+    )
+
+
+def run_pipeline(
+    cfg: Config,
+    topic: str,
+    *,
+    duration_seconds: int = 90,
+    style: Style = "explainer",
+    language: str = "de",
+    fmt: VideoFormat = VideoFormat.LANDSCAPE,
+    background: Path | None = None,
+    music: Path | None = None,
+    word_captions: bool = False,
+) -> PipelineResult:
+    """Auto-script via Claude, then render."""
+    cfg.require_anthropic()
+    script = generate_script(
+        cfg, topic,
+        duration_seconds=duration_seconds, style=style, language=language,
+    )
+    return render_from_script(
+        cfg, script,
+        fmt=fmt, background=background, music=music,
+        word_captions=word_captions, language=language,
+    )
+
+
+def run_from_text(
+    cfg: Config,
+    text_path: Path,
+    *,
+    language: str = "de",
+    fmt: VideoFormat = VideoFormat.SHORTS,
+    background: Path | None = None,
+    music: Path | None = None,
+    word_captions: bool = True,
+) -> PipelineResult:
+    """Parse a text file into a script, then render. No LLM required."""
+    script = from_text(text_path)
+    return render_from_script(
+        cfg, script,
+        fmt=fmt, background=background, music=music,
+        word_captions=word_captions, language=language,
     )

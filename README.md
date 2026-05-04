@@ -1,98 +1,114 @@
 # yt-automation
 
-Schlanke Python-CLI-Pipeline für YouTube-/Shorts-Content:
+Schlanke Python-CLI-Pipeline für YouTube-/Shorts-Content. **Default ist komplett kostenlos.**
 
 ```
-Topic → Claude (Skript) → ElevenLabs (Voiceover) → [Music + Footage]
-      → Whisper (Word-Captions) → FFmpeg → .mp4
+Skript-Datei (du) → edge-tts (Stimme) → Whisper (Captions)
+                  → FFmpeg + Footage + Musik → .mp4
 ```
 
-## Features
+## Workflows
 
-- **Skript** via Claude Opus 4.7 mit Adaptive Thinking + Prompt Caching, strukturiert (`messages.parse()`).
-- **Voiceover** via ElevenLabs Multilingual.
-- **Background-Music** mit Sidechain-Ducking — Musik dimmt automatisch wenn die Stimme spricht.
-- **Word-Level Captions** im TikTok/Shorts-Stil über `faster-whisper` → ASS-Subtitles, frame-genau getimt.
-- **Format**: `landscape` (1920×1080) oder `shorts` (1080×1920).
-- **Footage-Backgrounds**: einzelne Clips loopen oder Verzeichnis konkatenieren, automatisch gecroppt aufs Zielformat.
-- **Footage-Tooling**: `yt-dlp`-Download + FFmpeg-Clipping als CLI-Subcommands.
+### Kostenloser Workflow (empfohlen)
+
+Du schreibst dein Skript selbst — z. B. mit Gemini, ChatGPT oder von Hand — und legst es als `.txt` ab. Der Rest läuft automatisch:
+
+```bash
+yt-automation from-text mein_skript.txt --format shorts \
+  --background ./assets/footage --word-captions
+```
+
+Was passiert: Skript einlesen → Microsoft-Edge-Stimme synthetisiert das Voiceover (gratis) → Hintergrundmusik aus `assets/music/` wird darunter gemischt mit Auto-Ducking → Whisper hört das Voiceover ab und erzeugt frame-genaue Word-by-Word Captions → FFmpeg loopt deine Footage auf die Voiceover-Länge, croppt aufs 9:16 Format und brennt die Captions drauf.
+
+### Bezahl-Workflow (optional)
+
+Mit Anthropic-API-Key wird das Skript komplett von Claude geschrieben:
+
+```bash
+yt-automation run "Topic" --format shorts --background ./assets/footage --word-captions
+```
+
+Mit ElevenLabs (`TTS_PROVIDER=elevenlabs` in `.env`) kommt eine natürlichere Stimme — kostet ab 10.000 Zeichen/Monat.
+
+## Skript-Datei-Format
+
+Plain Text. Absätze durch Leerzeilen getrennt. Erster Absatz = Hook, letzter = Call-to-Action, dazwischen = Sections. Optional Header oben:
+
+```
+# Mein Titel
+description: Optionale Beschreibung
+tags: tag1, tag2
+
+Erster Absatz wird zum Hook.
+
+Mittlerer Absatz wird zur Section.
+
+Letzter Absatz wird zum Call-to-Action.
+```
+
+`skript_beispiel.txt` im Repo zeigt's konkret.
 
 ## Setup
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
+python -m venv .venv
+.venv\Scripts\activate            # Windows
+# source .venv/bin/activate       # macOS/Linux
 pip install -e .
-cp .env.example .env  # API-Keys eintragen
+cp .env.example .env              # ggf. anpassen
 ```
 
-`ffmpeg` und `ffprobe` müssen im PATH sein (`brew install ffmpeg` / `apt install ffmpeg`).
+`ffmpeg` und `ffprobe` müssen im PATH sein.
 
-Beim ersten `--word-captions` lädt `faster-whisper` das gewählte Modell (`WHISPER_MODEL`, default `base`).
+## Konfiguration (`.env`)
 
-## Nutzung
+| Variable | Default | Wozu |
+|---|---|---|
+| `TTS_PROVIDER` | `edge` | `edge` (gratis) oder `elevenlabs` (bezahlt) |
+| `EDGE_VOICE` | `de-DE-KatjaNeural` | Microsoft-Stimme. Liste via `yt-automation voices --language de` |
+| `WHISPER_MODEL` | `base` | `tiny`/`base`/`small`/`medium`/`large-v3` |
+| `OUTPUT_DIR` | `./out` | Wohin Skript/Audio/Video gespeichert werden |
+| `MUSIC_DIR` | `./assets/music` | Hintergrundmusik (Auto-Pick) |
+| `FOOTAGE_DIR` | `./assets/footage` | Footage-Pool |
+| `ANTHROPIC_API_KEY` | – | Nur für `run`/`script` (Claude) |
+| `ELEVENLABS_API_KEY` | – | Nur wenn `TTS_PROVIDER=elevenlabs` |
 
-### Komplette Pipeline
-
-```bash
-# Default: Landscape, statische Title-Card, grobe Section-Untertitel
-yt-automation run "Wie Kaffee deinen Schlaf zerstört"
-
-# Shorts (9:16) mit Footage-Background, Word-Captions, Auto-Music
-yt-automation run "Top 5 Anime Power-Ups" \
-  --format shorts \
-  --background ./assets/footage/montage.mp4 \
-  --word-captions
-
-# Mit Verzeichnis voller Clips (werden konkateniert + auf Voice-Länge geloopt)
-yt-automation run "Topic" --background ./assets/footage/ --word-captions
-```
-
-### Einzelne Stufen
+## Befehle
 
 ```bash
-yt-automation script "Topic"             # nur Skript -> out/script.json
-yt-automation tts out/script.json        # Skript -> out/voiceover.mp3
-yt-automation video out/script.json      # Skript+Audio -> out/final.mp4
-yt-automation voices                     # ElevenLabs voice_ids auflisten
-```
+# Stimmen anschauen
+yt-automation voices --language de
 
-### Footage-Management
-
-```bash
+# Footage holen
 yt-automation footage download "https://www.youtube.com/watch?v=..."
+yt-automation footage clip ./assets/footage/abc.mp4 --start 0:30 --end 0:45 --label scene1
 yt-automation footage list
-yt-automation footage clip ./assets/footage/abc123.mp4 \
-  --start 00:01:23 --end 00:01:45 --label fight-scene
+
+# Komplettes Video aus Text-Datei
+yt-automation from-text skript.txt --format shorts \
+  --background ./assets/footage --word-captions
+
+# Bezahl-Variante mit Claude
+yt-automation run "Topic" --format shorts --word-captions
 ```
-
-### Music
-
-Leg `.mp3`/`.wav`-Files in `assets/music/`. Die Pipeline pickt automatisch eine zufällige Spur, dimmt sie via Sidechain-Compression unter dem Voiceover.
 
 ## Struktur
 
 ```
 src/yt_automation/
-├── cli.py         # Typer-Entry-Point + footage subcommands
-├── config.py      # .env-Loader + Pfade
-├── script.py      # Claude → strukturiertes VideoScript
-├── tts.py         # ElevenLabs Voice-Synthese
-├── audio_mix.py   # Voice + Musik mit Ducking
+├── cli.py         # Typer-CLI
+├── config.py      # .env-Loader, Provider-Switches
+├── script.py      # Plain-Text-Parser + Claude-Generator
+├── tts.py         # edge-tts | ElevenLabs (umschaltbar)
+├── audio_mix.py   # Voice + Musik mit Sidechain-Ducking
 ├── captions.py    # faster-whisper → ASS Word-Captions
-├── footage.py     # yt-dlp Download + FFmpeg Clip + Background-Prep
+├── footage.py     # yt-dlp + FFmpeg Clip + Background-Prep
 ├── video.py       # Render-Pfade (Title-Card / Footage)
-└── pipeline.py    # End-to-End Orchestrator
+└── pipeline.py    # End-to-End-Orchestrator
 ```
 
-## Hinweis zu Footage von YouTube / Anime / Filmen
+## Hinweis zu Footage von YouTube
 
-`yt-dlp` ist ein generisches Tool, aber **Anime, Filme und Serien sind urheberrechtlich geschützt**. Sie zu rippen verletzt YouTube-ToS, sie in eigenen Uploads weiterzuverwenden verletzt die Rechte der Studios. Content-ID erkennt das in der Regel; Konsequenzen reichen von Demonetarisierung bis Channel-Löschung. Fair Use existiert in den USA, ist in DE/AT/CH deutlich enger gefasst (Zitatrecht, § 51 UrhG — und das ist nichts, was eine reine Montage abdeckt).
+`yt-dlp` ist generisches Tooling, aber Anime/Filme/Serien sind urheberrechtlich geschützt. Sie zu rippen verletzt YouTube-ToS, sie in eigenen Uploads zu nutzen verletzt die Rechte der Studios. Content-ID erkennt das in der Regel; Konsequenzen reichen von Demonetarisierung bis Channel-Löschung. Fair Use existiert in den USA, in DE/AT/CH ist § 51 UrhG (Zitatrecht) deutlich enger gefasst und deckt reine Montagen nicht ab.
 
-Sicher nutzbar:
-- Eigenes Material
-- Lizenzierte Stock-Footage (Pexels, Pixabay, Storyblocks)
-- Creative-Commons-Quellen
-- Public-Domain-Werke (alte Filme/Anime, Urheber 70+ Jahre tot bzw. CC0)
-- Echte Kommentar-/Kritik-Videos mit substantiellem eigenem Anteil
-
-Du bist verantwortlich für das, was du hochlädst. Diese Pipeline baut **keine** Detection-Evasion ein.
+Sicher nutzbar: eigenes Material, Stock-Footage (Pexels/Pixabay), CC-Quellen, Public Domain, echte Kommentar-/Kritik-Videos mit substantiellem eigenem Anteil. Du bist verantwortlich für das, was du veröffentlichst. Die Pipeline enthält **keine** Detection-Evasion.

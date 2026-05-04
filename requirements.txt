@@ -1,5 +1,6 @@
 anthropic>=0.92.0
 elevenlabs>=1.5.0
+edge-tts>=6.1.12
 python-dotenv>=1.0.0
 pydantic>=2.6.0
 typer>=0.12.0
