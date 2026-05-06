@@ -10,6 +10,7 @@ from rich.console import Console
 from rich.table import Table
 
 from . import footage as footage_mod
+from . import scene_pack as scene_pack_mod
 from .config import Config
 from .pipeline import run_from_text, run_pipeline
 from .script import (
@@ -44,7 +45,7 @@ def from_text_cmd(
     ] = VideoFormat.SHORTS,
     background: Annotated[
         Optional[Path],
-        typer.Option(help="Footage-Datei oder -Verzeichnis als Hintergrund."),
+        typer.Option(help="Footage-Datei, -Verzeichnis oder Scene-Pack."),
     ] = None,
     music: Annotated[
         Optional[Path],
@@ -54,6 +55,16 @@ def from_text_cmd(
         bool, typer.Option(help="Whisper Word-Level Captions.")
     ] = True,
     language: Annotated[str, typer.Option(help="Sprachcode für Whisper.")] = "de",
+    fast_cuts: Annotated[
+        bool, typer.Option(help="Schnelle Cuts statt einem geloopten Background.")
+    ] = True,
+    publish: Annotated[
+        bool, typer.Option(help="Nach Render direkt zu YouTube hochladen.")
+    ] = False,
+    privacy: Annotated[
+        Optional[str],
+        typer.Option(help="Override für Privacy: private/unlisted/public."),
+    ] = None,
 ) -> None:
     """Render ein Video aus einer Plain-Text-Skript-Datei (gratis Workflow)."""
     cfg = Config.load()
@@ -71,12 +82,15 @@ def from_text_cmd(
             cfg, text_path,
             language=language, fmt=fmt,
             background=background, music=music,
-            word_captions=word_captions,
+            word_captions=word_captions, fast_cuts=fast_cuts,
+            publish=publish, privacy=privacy,
         )
 
     console.print(f"[green]✓[/green] Script   -> {result.script_path}")
     console.print(f"[green]✓[/green] Audio    -> {result.audio_path}")
     console.print(f"[green]✓[/green] Video    -> {result.video_path}")
+    if result.upload_url:
+        console.print(f"[green]✓[/green] Upload   -> {result.upload_url}")
     console.print(f"\n[bold]{result.script.title}[/bold]")
 
 
@@ -95,6 +109,9 @@ def run(
     background: Annotated[Optional[Path], typer.Option()] = None,
     music: Annotated[Optional[Path], typer.Option()] = None,
     word_captions: Annotated[bool, typer.Option()] = False,
+    fast_cuts: Annotated[bool, typer.Option()] = True,
+    publish: Annotated[bool, typer.Option()] = False,
+    privacy: Annotated[Optional[str], typer.Option()] = None,
 ) -> None:
     """Voll-automatisch: Claude schreibt Skript -> TTS -> Video. Braucht Anthropic-Key."""
     cfg = Config.load()
@@ -103,11 +120,14 @@ def run(
             cfg, topic,
             duration_seconds=duration, style=style, language=language,
             fmt=fmt, background=background, music=music,
-            word_captions=word_captions,
+            word_captions=word_captions, fast_cuts=fast_cuts,
+            publish=publish, privacy=privacy,
         )
     console.print(f"[green]✓[/green] Script   -> {result.script_path}")
     console.print(f"[green]✓[/green] Audio    -> {result.audio_path}")
     console.print(f"[green]✓[/green] Video    -> {result.video_path}")
+    if result.upload_url:
+        console.print(f"[green]✓[/green] Upload   -> {result.upload_url}")
     console.print(f"\n[bold]{result.script.title}[/bold]\n{result.script.description}")
 
 
@@ -232,6 +252,122 @@ def footage_list() -> None:
         size_mb = p.stat().st_size / (1024 * 1024)
         table.add_row(p.name, f"{size_mb:.1f} MB")
     console.print(table)
+
+
+@footage_app.command("extract")
+def footage_extract(
+    source: Annotated[Path, typer.Argument(help="Quell-Video (lokale Datei).")],
+    threshold: Annotated[
+        Optional[float],
+        typer.Option(help="Scene-Detection-Schwelle. Override für SCENE_THRESHOLD."),
+    ] = None,
+    min_len: Annotated[
+        Optional[float], typer.Option(help="Min. Clip-Laenge in Sek.")
+    ] = None,
+    max_len: Annotated[
+        Optional[float], typer.Option(help="Max. Clip-Laenge in Sek.")
+    ] = None,
+    min_motion: Annotated[
+        float, typer.Option(help="Statische Frames filtern (0 = alles behalten).")
+    ] = 1.5,
+    keep_top: Annotated[
+        Optional[int], typer.Option(help="Nur die N bewegtesten Clips behalten.")
+    ] = None,
+) -> None:
+    """Quell-Video in einen Scene-Pack zerlegen (kurze, motion-reiche Clips)."""
+    cfg = Config.load()
+    th = threshold if threshold is not None else cfg.scene_threshold
+    mn = min_len if min_len is not None else cfg.scene_min_len
+    mx = max_len if max_len is not None else cfg.scene_max_len
+
+    with console.status(f"Extrahiere Szenen aus {source.name}..."):
+        scenes = scene_pack_mod.extract(
+            source, cfg.footage_dir,
+            threshold=th, min_len=mn, max_len=mx,
+            min_motion=min_motion, keep_top=keep_top,
+        )
+    pack_dir = cfg.footage_dir / source.stem
+    console.print(f"[green]✓[/green] {len(scenes)} Szenen -> {pack_dir}")
+
+    table = Table(title="Top Scenes (motion)")
+    table.add_column("idx")
+    table.add_column("dur")
+    table.add_column("motion")
+    for s in sorted(scenes, key=lambda x: x.motion_score, reverse=True)[:10]:
+        table.add_row(
+            f"{s.index:03d}", f"{s.duration:.1f}s", f"{s.motion_score:.2f}"
+        )
+    console.print(table)
+
+
+@footage_app.command("packs")
+def footage_packs() -> None:
+    """Vorhandene Scene-Packs auflisten."""
+    cfg = Config.load()
+    packs = scene_pack_mod.list_packs(cfg.footage_dir)
+    if not packs:
+        console.print(f"[yellow]Keine Scene-Packs in {cfg.footage_dir}[/yellow]")
+        return
+    table = Table(title="Scene-Packs")
+    table.add_column("pack")
+    table.add_column("scenes")
+    for p in packs:
+        scenes = scene_pack_mod.load_pack(p)
+        table.add_row(p.name, str(len(scenes)))
+    console.print(table)
+
+
+# ============================================================
+# Publishing
+# ============================================================
+
+
+@app.command()
+def publish(
+    video_path: Annotated[Path, typer.Argument(help="MP4 zum Hochladen.")],
+    script_path: Annotated[
+        Optional[Path],
+        typer.Option(help="script.json fuer Title/Description/Tags."),
+    ] = None,
+    title: Annotated[Optional[str], typer.Option()] = None,
+    description: Annotated[Optional[str], typer.Option()] = None,
+    tags: Annotated[
+        Optional[str], typer.Option(help="Komma-separierte Tags.")
+    ] = None,
+    privacy: Annotated[Optional[str], typer.Option()] = None,
+) -> None:
+    """Ein bereits gerendertes Video als Short hochladen."""
+    cfg = Config.load()
+    if not cfg.has_youtube_credentials():
+        console.print(
+            f"[red]Kein client_secret unter {cfg.yt_client_secret}.[/red] "
+            "Erst in der Google Cloud Console anlegen."
+        )
+        raise typer.Exit(code=1)
+
+    from . import publish as publish_mod
+
+    if script_path:
+        s = load_script(script_path)
+        with console.status("Lade hoch..."):
+            res = publish_mod.upload_from_script(
+                cfg, video_path, s, privacy=privacy,
+            )
+    else:
+        if not (title and description):
+            console.print(
+                "[red]--script-path ODER (--title und --description) erforderlich.[/red]"
+            )
+            raise typer.Exit(code=1)
+        tag_list = [t.strip() for t in (tags or "").split(",") if t.strip()]
+        with console.status("Lade hoch..."):
+            res = publish_mod.upload(
+                cfg, video_path,
+                title=title, description=description, tags=tag_list,
+                privacy=privacy,
+            )
+
+    console.print(f"[green]✓[/green] {res.url} ({res.privacy})")
 
 
 if __name__ == "__main__":

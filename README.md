@@ -4,8 +4,13 @@ Schlanke Python-CLI-Pipeline für YouTube-/Shorts-Content. **Default ist komplet
 
 ```
 Skript-Datei (du) → edge-tts (Stimme) → Whisper (Captions)
-                  → FFmpeg + Footage + Musik → .mp4
+                  → Scene-Pack-Cuts + Musik (loudnorm) → .mp4
+                  → optional: YouTube-Upload
 ```
+
+> **Erwartung:** Die Pipeline produziert technisch saubere Shorts mit
+> Word-Captions und Auto-Cuts. **Keine Garantie auf Views** — Reichweite
+> hängt an Niche, Hook-Qualität, Channel-Authority und Algorithmus.
 
 ## Workflows
 
@@ -84,13 +89,40 @@ yt-automation footage download "https://www.youtube.com/watch?v=..."
 yt-automation footage clip ./assets/footage/abc.mp4 --start 0:30 --end 0:45 --label scene1
 yt-automation footage list
 
-# Komplettes Video aus Text-Datei
+# Scene-Pack: ein langes Video in motion-reiche Kurz-Clips zerlegen
+yt-automation footage extract ./assets/footage/long_video.mp4 \
+  --min-len 2 --max-len 6 --keep-top 30
+yt-automation footage packs
+
+# Komplettes Video aus Text-Datei (Scene-Pack als Background -> Auto-Cuts)
 yt-automation from-text skript.txt --format shorts \
-  --background ./assets/footage --word-captions
+  --background ./assets/footage/long_video --word-captions
+
+# Render + direkt zu YouTube hochladen (private)
+yt-automation from-text skript.txt --background ./assets/footage/long_video \
+  --publish --privacy private
 
 # Bezahl-Variante mit Claude
-yt-automation run "Topic" --format shorts --word-captions
+yt-automation run "Topic" --format shorts --word-captions --publish
+
+# Manuelles Upload eines bereits gerenderten Videos
+yt-automation publish ./out/final.mp4 --script-path ./out/script.json
 ```
+
+## YouTube-Upload Setup (einmalig)
+
+1. **Google-Cloud-Projekt** anlegen → console.cloud.google.com
+2. **YouTube Data API v3** im Projekt aktivieren
+3. **OAuth-Consent-Screen** konfigurieren (External, Test-User = deine Mail)
+4. **OAuth-Client** erstellen (Type: "Desktop app") und JSON herunterladen
+5. Datei nach `./secrets/client_secret.json` legen (Pfad in `.env` änderbar)
+6. Beim ersten `--publish` öffnet sich der Browser einmal für den Consent
+
+**Quota:** 1 Upload kostet 1.600 Units, Default-Limit 10.000/Tag → max ~6 Uploads/Tag.
+Höheres Kontingent musst du bei Google beantragen.
+
+**Privacy-Default:** `private`. Du reviewst und schaltest manuell auf `public`.
+Override via `--privacy public` oder `YT_DEFAULT_PRIVACY` in `.env`.
 
 ## Struktur
 
@@ -98,11 +130,13 @@ yt-automation run "Topic" --format shorts --word-captions
 src/yt_automation/
 ├── cli.py         # Typer-CLI
 ├── config.py      # .env-Loader, Provider-Switches
-├── script.py      # Plain-Text-Parser + Claude-Generator
+├── script.py      # Plain-Text-Parser + Claude-Generator (Retention-Prompt)
 ├── tts.py         # edge-tts | ElevenLabs (umschaltbar)
-├── audio_mix.py   # Voice + Musik mit Sidechain-Ducking
-├── captions.py    # faster-whisper → ASS Word-Captions
-├── footage.py     # yt-dlp + FFmpeg Clip + Background-Prep
+├── audio_mix.py   # Voice + Musik, Sidechain-Ducking + Loudnorm (-14 LUFS)
+├── captions.py    # faster-whisper → ASS Word-Captions, Color-Rotation
+├── footage.py     # yt-dlp + FFmpeg, Background + Fast-Cuts
+├── scene_pack.py  # PySceneDetect → motion-gefilterte Scene-Packs
+├── publish.py     # YouTube Data API v3 Upload (OAuth)
 ├── video.py       # Render-Pfade (Title-Card / Footage)
 └── pipeline.py    # End-to-End-Orchestrator
 ```

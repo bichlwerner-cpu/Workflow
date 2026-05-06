@@ -19,3 +19,9 @@ assets/music/
 .DS_Store
 .idea/
 .vscode/
+
+secrets/
+*.client_secret*.json
+client_secret*.json
+token.json
+*.pickle

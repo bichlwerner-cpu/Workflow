@@ -33,6 +33,18 @@ class Config:
     music_dir: Path
     footage_dir: Path
 
+    # Scene-Pack
+    scene_threshold: float
+    scene_min_len: float
+    scene_max_len: float
+
+    # YouTube publishing
+    yt_client_secret: Path
+    yt_token_cache: Path
+    yt_default_privacy: str
+    yt_default_category: str
+    yt_default_language: str
+
     @classmethod
     def load(cls) -> "Config":
         out = Path(os.environ.get("OUTPUT_DIR", "./out")).resolve()
@@ -66,6 +78,18 @@ class Config:
             output_dir=out,
             music_dir=music_dir,
             footage_dir=footage_dir,
+            scene_threshold=float(os.environ.get("SCENE_THRESHOLD", "27")),
+            scene_min_len=float(os.environ.get("SCENE_MIN_LEN", "2.0")),
+            scene_max_len=float(os.environ.get("SCENE_MAX_LEN", "6.0")),
+            yt_client_secret=Path(
+                os.environ.get("YT_CLIENT_SECRET", "./secrets/client_secret.json")
+            ).expanduser(),
+            yt_token_cache=Path(
+                os.environ.get("YT_TOKEN_CACHE", "./secrets/token.json")
+            ).expanduser(),
+            yt_default_privacy=os.environ.get("YT_DEFAULT_PRIVACY", "private").strip().lower(),
+            yt_default_category=os.environ.get("YT_DEFAULT_CATEGORY", "24").strip(),
+            yt_default_language=os.environ.get("YT_DEFAULT_LANGUAGE", "de").strip(),
         )
 
     def require_anthropic(self) -> None:
@@ -83,3 +107,6 @@ class Config:
                 "Either fill in ELEVENLABS_API_KEY in .env, or set "
                 "TTS_PROVIDER=edge for the free Microsoft voices."
             )
+
+    def has_youtube_credentials(self) -> bool:
+        return self.yt_client_secret.exists()

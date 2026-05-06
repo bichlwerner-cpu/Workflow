@@ -9,6 +9,7 @@ where that applies. You are responsible for the videos you publish.
 
 from __future__ import annotations
 
+import random
 import shutil
 import subprocess
 from pathlib import Path
@@ -137,3 +138,117 @@ def prepare_background(
         check=True,
     )
     return out
+
+
+def prepare_fast_cuts(
+    clips: list[Path],
+    target_duration: float,
+    width: int,
+    height: int,
+    workdir: Path,
+    *,
+    cut_min: float = 1.5,
+    cut_max: float = 2.5,
+    seed: int | None = None,
+) -> Path:
+    """Build a background by stitching short random slices of `clips`.
+
+    Optimized for retention: a new visual every cut_min..cut_max seconds.
+    Each slice is scaled+cropped to WxH; audio stripped; output concat.
+    """
+    if not shutil.which("ffmpeg"):
+        raise RuntimeError("ffmpeg not found in PATH")
+    if not clips:
+        raise ValueError("prepare_fast_cuts requires at least one clip")
+    workdir.mkdir(parents=True, exist_ok=True)
+
+    rng = random.Random(seed)
+    vf = (
+        f"scale={width}:{height}:force_original_aspect_ratio=increase,"
+        f"crop={width}:{height},setsar=1,fps=30"
+    )
+
+    slices_dir = workdir / "slices"
+    slices_dir.mkdir(exist_ok=True)
+    for old in slices_dir.glob("*.mp4"):
+        old.unlink()
+
+    slice_paths: list[Path] = []
+    elapsed = 0.0
+    idx = 0
+    pool = list(clips)
+    rng.shuffle(pool)
+    pool_pos = 0
+
+    while elapsed < target_duration:
+        clip = pool[pool_pos % len(pool)]
+        pool_pos += 1
+
+        clip_duration = _probe_duration(clip)
+        if clip_duration <= 0.5:
+            continue
+
+        slice_len = rng.uniform(cut_min, cut_max)
+        slice_len = min(slice_len, target_duration - elapsed, clip_duration)
+        if slice_len < 0.4:
+            break
+
+        max_start = max(0.0, clip_duration - slice_len)
+        start = rng.uniform(0.0, max_start) if max_start > 0 else 0.0
+
+        out = slices_dir / f"slice_{idx:04d}.mp4"
+        subprocess.run(
+            [
+                "ffmpeg", "-y",
+                "-ss", f"{start:.3f}",
+                "-t", f"{slice_len:.3f}",
+                "-i", str(clip),
+                "-vf", vf,
+                "-an",
+                "-c:v", "libx264", "-preset", "fast", "-crf", "20",
+                "-pix_fmt", "yuv420p",
+                "-r", "30",
+                str(out),
+            ],
+            check=True,
+            capture_output=True,
+        )
+        slice_paths.append(out)
+        elapsed += slice_len
+        idx += 1
+
+    list_file = workdir / "fastcut_concat.txt"
+    list_file.write_text(
+        "\n".join(f"file '{p.resolve().as_posix()}'" for p in slice_paths),
+        encoding="utf-8",
+    )
+    out_path = workdir / "background.mp4"
+    subprocess.run(
+        [
+            "ffmpeg", "-y",
+            "-f", "concat", "-safe", "0",
+            "-i", str(list_file),
+            "-c", "copy",
+            str(out_path),
+        ],
+        check=True,
+    )
+    return out_path
+
+
+def _probe_duration(path: Path) -> float:
+    if not shutil.which("ffprobe"):
+        return 0.0
+    res = subprocess.run(
+        [
+            "ffprobe", "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            str(path),
+        ],
+        capture_output=True, text=True,
+    )
+    try:
+        return float(res.stdout.strip())
+    except ValueError:
+        return 0.0
