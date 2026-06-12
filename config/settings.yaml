@@ -56,8 +56,14 @@ fonts:
   - /Library/Fonts/Arial Bold.ttf
   - C:/Windows/Fonts/arialbd.ttf
 
+# Script generation provider:
+#   gemini — FREE via Google AI Studio key (https://aistudio.google.com/apikey),
+#            no credit card; free tier (~10 req/min, 250/day) is plenty.
+#   claude — paid Anthropic API, best script quality
+#            (set provider: claude and model: claude-opus-4-8).
 llm:
-  model: claude-opus-4-8
+  provider: gemini
+  model: gemini-2.5-flash
   max_tokens: 16000
 
 youtube:

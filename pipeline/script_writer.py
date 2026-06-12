@@ -1,27 +1,31 @@
-"""Script generation with the Claude API.
+"""Script generation via Claude (paid, best quality) or Gemini (free tier).
 
-Strategy for long-form quality:
+Strategy for long-form quality (same for both providers):
   1. one OUTLINE call -> title options, chapter plan with open loops, metadata
   2. one call for the HOOK (cold open), one per CHAPTER, one for the OUTRO,
      each receiving the outline plus the tail of the previous section so the
      dialogue flows continuously.
 
-All calls use structured outputs (pydantic schemas from models.py), so every
-emitted pose/emotion/background/prop is guaranteed renderable.
+Claude uses native structured outputs (schema-enforced). Gemini uses JSON
+mode + pydantic validation with a repair retry; out-of-vocabulary values are
+coerced by the model validators, so every script stays renderable.
 """
 
 from __future__ import annotations
 
+import json
+import time
 from typing import List, Optional, Type, TypeVar
 
-import anthropic
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from .config import Settings, require_env
 from .models import Chapter, Outline, Scene, ScenesPayload, Script
 from .vocab import BACKGROUNDS, EMOTIONS, POSES, PROPS
 
 T = TypeVar("T", bound=BaseModel)
+
+GEMINI_API = "https://generativelanguage.googleapis.com/v1beta/models"
 
 LANG_NAMES = {"en": "English", "de": "German"}
 
@@ -82,15 +86,30 @@ Frame dark-psychology topics as "recognize and defend", never as a how-to agains
 
 class ScriptWriter:
     def __init__(self, settings: Settings):
-        require_env("ANTHROPIC_API_KEY")
         self.settings = settings
-        self.client = anthropic.Anthropic()
-        self.model = settings.get("llm", "model", default="claude-opus-4-8")
+        self.provider = str(settings.get("llm", "provider", default="gemini")).lower()
         self.max_tokens = int(settings.get("llm", "max_tokens", default=16000))
         self.system = build_system_prompt(settings)
 
+        model = str(settings.get("llm", "model", default="") or "")
+        if self.provider == "claude":
+            require_env("ANTHROPIC_API_KEY")
+            import anthropic
+            self.client = anthropic.Anthropic()
+            self.model = model if model.startswith("claude") else "claude-opus-4-8"
+        elif self.provider == "gemini":
+            self.api_key = require_env("GEMINI_API_KEY")
+            self.model = model if model.startswith("gemini") else "gemini-2.5-flash"
+        else:
+            raise SystemExit(f"Unknown llm.provider '{self.provider}' (use 'gemini' or 'claude').")
+
     # ------------------------------------------------------------------ utils
     def _parse(self, user_prompt: str, schema: Type[T]) -> T:
+        if self.provider == "gemini":
+            return self._parse_gemini(user_prompt, schema)
+        return self._parse_claude(user_prompt, schema)
+
+    def _parse_claude(self, user_prompt: str, schema: Type[T]) -> T:
         response = self.client.messages.parse(
             model=self.model,
             max_tokens=self.max_tokens,
@@ -114,6 +133,61 @@ class ScriptWriter:
         if parsed is None:
             raise RuntimeError("Claude returned no parseable structured output.")
         return parsed
+
+    def _parse_gemini(self, user_prompt: str, schema: Type[T]) -> T:
+        import requests
+
+        prompt = (
+            f"{user_prompt}\n\n"
+            f"Respond with ONLY a single JSON object (no markdown fences, no prose) "
+            f"that validates against this JSON schema:\n"
+            f"{json.dumps(schema.model_json_schema())}"
+        )
+        url = f"{GEMINI_API}/{self.model}:generateContent"
+        headers = {"x-goog-api-key": self.api_key}
+
+        last_err = "unknown error"
+        for attempt in range(5):
+            body = {
+                "system_instruction": {"parts": [{"text": self.system}]},
+                "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    "responseMimeType": "application/json",
+                    "maxOutputTokens": self.max_tokens,
+                },
+            }
+            resp = requests.post(url, headers=headers, json=body, timeout=600)
+            if resp.status_code in (429, 500, 502, 503):
+                wait = [10, 20, 40, 70, 70][attempt]
+                print(f"    [script] Gemini busy/rate-limited ({resp.status_code}); "
+                      f"waiting {wait}s (free tier allows ~10 requests/min) ...")
+                time.sleep(wait)
+                continue
+            if resp.status_code >= 400:
+                raise SystemExit(f"Gemini API error {resp.status_code}: {resp.text[:500]}")
+
+            data = resp.json()
+            if not data.get("candidates"):
+                block = data.get("promptFeedback", {}).get("blockReason", "no candidates")
+                raise RuntimeError(f"Gemini returned no output ({block}) — rephrase the topic.")
+            cand = data["candidates"][0]
+            if cand.get("finishReason") == "MAX_TOKENS":
+                raise RuntimeError(
+                    "Gemini hit max_tokens mid-generation. Raise llm.max_tokens in "
+                    "settings.yaml or lower video.target_minutes."
+                )
+            text = "".join(p.get("text", "") for p in cand.get("content", {}).get("parts", []))
+            try:
+                return schema.model_validate(json.loads(text))
+            except (json.JSONDecodeError, ValidationError) as e:
+                last_err = str(e)[:600]
+                prompt = (
+                    f"{user_prompt}\n\nYour previous JSON response was invalid:\n{last_err}\n\n"
+                    f"Return ONLY a corrected JSON object matching this schema:\n"
+                    f"{json.dumps(schema.model_json_schema())}"
+                )
+                print(f"    [script] Gemini JSON invalid, retrying ({attempt + 1}/5) ...")
+        raise RuntimeError(f"Gemini failed to produce valid JSON after retries: {last_err}")
 
     @staticmethod
     def _tail_of(scenes: List[Scene], n_lines: int = 4) -> str:

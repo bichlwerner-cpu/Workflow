@@ -215,8 +215,13 @@ def cmd_validate(args) -> None:
         print(f"[{mark}] {label}" + (f" — {hint}" if not passed and hint else ""))
         ok = ok and passed
 
-    check("ANTHROPIC_API_KEY set", bool(os.environ.get("ANTHROPIC_API_KEY")),
-          "needed for script generation")
+    provider = str(settings.get("llm", "provider", default="gemini")).lower()
+    if provider == "claude":
+        check("ANTHROPIC_API_KEY set", bool(os.environ.get("ANTHROPIC_API_KEY")),
+              "needed for script generation (llm.provider: claude)")
+    else:
+        check("GEMINI_API_KEY set", bool(os.environ.get("GEMINI_API_KEY")),
+              "free key: https://aistudio.google.com/apikey")
     check("ELEVENLABS_API_KEY set", bool(os.environ.get("ELEVENLABS_API_KEY")),
           "needed for voiceover")
     check("ffmpeg on PATH", shutil.which("ffmpeg") is not None,

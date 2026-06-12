@@ -38,7 +38,8 @@ pip install -r requirements.txt
 sudo apt install ffmpeg          # bzw. brew install ffmpeg
 
 # 2. API-Keys
-cp .env.example .env             # ANTHROPIC_API_KEY + ELEVENLABS_API_KEY eintragen
+cp .env.example .env             # GEMINI_API_KEY (gratis) + ELEVENLABS_API_KEY eintragen
+#    Gemini-Key kostenlos (ohne Kreditkarte): https://aistudio.google.com/apikey
 
 # 3. (empfohlen) Branding
 #    - Bold-Font nach assets/fonts/ (siehe assets/fonts/README.md)
@@ -86,8 +87,11 @@ python -m pipeline metadata  --slug <slug>
 
 ## Was die Qualität/Retention treibt
 
-Das Skript wird von `claude-opus-4-8` mit **structured outputs** erzeugt — jede
-Pose/Emotion/Hintergrund ist garantiert renderbar. Das System-Prompt erzwingt
+Das Skript erzeugt standardmäßig **Gemini 2.5 Flash** (kostenloser API-Key) im
+JSON-Modus mit Validierung + Reparatur-Retry; optional liefert
+`llm.provider: claude` (`claude-opus-4-8`, bezahlt) mit nativen structured
+outputs die beste Skriptqualität. In beiden Fällen ist jede
+Pose/Emotion/Hintergrund garantiert renderbar. Das System-Prompt erzwingt
 ein Retention-Playbook: Cold-Open-Hook in den ersten 15 Wörtern, Open Loops am
 Kapitelende, Pattern-Interrupts alle 30–45 s, Re-Hooks, konkrete Beispiele statt
 Abstraktion, ein CTA. Gleichzeitig gilt: **echte Psychologie, keine erfundenen
@@ -125,7 +129,8 @@ python scripts/smoke_test.py    # rendert Beispiel-Frames + Thumbnail nach outpu
 
 | Posten | ca. |
 |---|---|
-| Claude (Skript, ~10 Calls) | 1–3 USD |
+| Skript mit Gemini (Standard, ~10 Calls) | 0 USD (Free Tier) |
+| Skript mit Claude (optional, beste Qualität) | 1–3 USD |
 | ElevenLabs (~1.800 Wörter ≈ 10–12 k Zeichen) | Kontingent des Abos |
 | Rendern | nur CPU-Zeit (~20–60 min je nach Maschine) |
 

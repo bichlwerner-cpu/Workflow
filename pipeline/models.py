@@ -8,9 +8,10 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
-from .vocab import Background, Camera, Emotion, PoseName, Prop
+from .vocab import (BACKGROUNDS, CAMERAS, EMOTIONS, POSES, PROPS, Background,
+                    Camera, Emotion, PoseName, Prop)
 
 
 class Line(BaseModel):
@@ -18,21 +19,48 @@ class Line(BaseModel):
 
     character: str = Field(description="Character key from the cast list.")
     text: str = Field(description="The spoken words. 6-30 words, conversational.")
-    emotion: Emotion = Field(description="Facial expression while speaking.")
-    pose: PoseName = Field(description="Body pose while speaking.")
-    prop: Prop = Field(description="Floating icon shown next to the speaker, or 'none'.")
-    camera: Camera = Field(description="'shake' for shock beats, 'zoom_in' for emphasis, else 'normal'.")
+    emotion: Emotion = Field(default="neutral", description="Facial expression while speaking.")
+    pose: PoseName = Field(default="talking", description="Body pose while speaking.")
+    prop: Prop = Field(default="none", description="Floating icon shown next to the speaker, or 'none'.")
+    camera: Camera = Field(default="normal", description="'shake' for shock beats, 'zoom_in' for emphasis, else 'normal'.")
+
+    # Providers without enforced enums (e.g. Gemini free tier) occasionally
+    # emit values outside the vocabulary; coerce instead of failing the video.
+    @field_validator("emotion", mode="before")
+    @classmethod
+    def _coerce_emotion(cls, v):
+        return v if v in EMOTIONS else "neutral"
+
+    @field_validator("pose", mode="before")
+    @classmethod
+    def _coerce_pose(cls, v):
+        return v if v in POSES else "talking"
+
+    @field_validator("prop", mode="before")
+    @classmethod
+    def _coerce_prop(cls, v):
+        return v if v in PROPS else "none"
+
+    @field_validator("camera", mode="before")
+    @classmethod
+    def _coerce_camera(cls, v):
+        return v if v in CAMERAS else "normal"
 
 
 class Scene(BaseModel):
     """A continuous beat with a fixed background and 1-3 characters."""
 
-    background: Background = Field(description="Background preset for this scene.")
+    background: Background = Field(default="void", description="Background preset for this scene.")
     caption: Optional[str] = Field(
         default=None,
         description="Optional short on-screen text (max 6 words), e.g. a key term or number. Use sparingly.",
     )
     lines: List[Line] = Field(description="2-6 dialogue lines.")
+
+    @field_validator("background", mode="before")
+    @classmethod
+    def _coerce_background(cls, v):
+        return v if v in BACKGROUNDS else "void"
 
 
 class ChapterPlan(BaseModel):
@@ -44,7 +72,12 @@ class ChapterPlan(BaseModel):
 
 class ThumbnailSpec(BaseModel):
     text: str = Field(description="Thumbnail text, 2-4 punchy words, ALL CAPS feel.")
-    expression: Emotion = Field(description="Stickman facial expression on the thumbnail.")
+    expression: Emotion = Field(default="shocked", description="Stickman facial expression on the thumbnail.")
+
+    @field_validator("expression", mode="before")
+    @classmethod
+    def _coerce_expression(cls, v):
+        return v if v in EMOTIONS else "shocked"
 
 
 class Outline(BaseModel):

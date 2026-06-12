@@ -124,7 +124,7 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     },
     "style": {"accent": "#FFD60A", "progress_bar": True, "chapter_cards": True, "watermark": ""},
     "fonts": [],
-    "llm": {"model": "claude-opus-4-8", "max_tokens": 16000},
+    "llm": {"provider": "gemini", "model": "gemini-2.5-flash", "max_tokens": 16000},
     "youtube": {
         "category_id": "27", "privacy_status": "private",
         "made_for_kids": False, "description_footer": "",
