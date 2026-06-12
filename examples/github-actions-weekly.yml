@@ -1,0 +1,75 @@
+# Example: produce one video per week automatically with GitHub Actions.
+#
+# To activate:
+#   1. copy this file to .github/workflows/weekly-video.yml
+#   2. add repo secrets: ANTHROPIC_API_KEY, ELEVENLABS_API_KEY
+#   3. maintain a topics backlog in topics.txt (one topic per line);
+#      the workflow takes the first line and removes it after a successful run
+#
+# The rendered video is attached as a workflow artifact for manual review +
+# upload. Fully automated YouTube upload from CI is possible (OAuth refresh
+# token as a secret) but reviewing before publishing is strongly recommended.
+
+name: Weekly video
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"   # every Monday 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: "Video topic (overrides topics.txt)"
+        required: false
+
+jobs:
+  produce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu-core
+          pip install -r requirements.txt
+
+      - name: Pick topic
+        id: topic
+        run: |
+          if [ -n "${{ github.event.inputs.topic }}" ]; then
+            echo "topic=${{ github.event.inputs.topic }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "topic=$(head -n 1 topics.txt)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Produce video
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+        run: python -m pipeline produce --topic "${{ steps.topic.outputs.topic }}"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-${{ github.run_number }}
+          path: |
+            output/**/video.mp4
+            output/**/thumbnail.png
+            output/**/description.txt
+            output/**/subtitles.srt
+            output/**/metadata.json
+          retention-days: 14
+
+      - name: Consume topic from backlog
+        if: success() && github.event.inputs.topic == ''
+        run: |
+          tail -n +2 topics.txt > topics.tmp && mv topics.tmp topics.txt
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add topics.txt
+          git commit -m "Consume weekly topic" || true
+          git push

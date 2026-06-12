@@ -1,0 +1,140 @@
+# Stickman Studio 🎬
+
+Automatisierte Pipeline für einen **Long-Form YouTube-Kanal mit Stickman-Charakteren**
+(Thema: Psychologie). Ein Befehl produziert ein komplettes, upload-fertiges Video:
+
+```
+Thema  ──►  Skript (Claude)  ──►  Voiceover (ElevenLabs)  ──►  Video (FFmpeg)
+            + Titel/Tags          + Untertitel-Timing          + Untertitel
+            + Thumbnail-Plan      + Lippensynchronisation      + Thumbnail
+                                                               + Beschreibung
+```
+
+## Warum die Charaktere zu 100 % konsistent sind
+
+Der Stickman wird **nicht** von einem Bildgenerator erzeugt, sondern **prozedural
+gezeichnet** (parametrisches Skelett-Modell in `pipeline/stickman.py`). Dadurch:
+
+- ist jeder Charakter in jedem Frame und jedem Video pixelgenau identisch,
+- kann er animiert werden (16 Posen, 10 Emotionen, echte Lippensynchronisation
+  aus den ElevenLabs-Timestamps, Blinzeln, Gesten, Idle-Bewegung),
+- kostet das Rendern nichts außer CPU-Zeit.
+
+Die **Stimmen** bleiben konsistent durch drei Mechanismen:
+
+1. Pro Charakter eine feste `voice_id` mit eingefrorenen Voice-Settings
+   (`config/characters.yaml`).
+2. **Request Stitching**: Jede Zeile übergibt die `previous_request_ids` der
+   letzten Generierungen derselben Stimme — die Prosodie bleibt über das ganze
+   Video kohärent (deshalb `eleven_multilingual_v2`, **nicht** `eleven_v3` —
+   v3 unterstützt kein Stitching).
+3. `previous_text` / `next_text` Kontext für natürlichen Satzfluss.
+
+## Setup
+
+```bash
+# 1. Abhängigkeiten
+pip install -r requirements.txt
+sudo apt install ffmpeg          # bzw. brew install ffmpeg
+
+# 2. API-Keys
+cp .env.example .env             # ANTHROPIC_API_KEY + ELEVENLABS_API_KEY eintragen
+
+# 3. (empfohlen) Branding
+#    - Bold-Font nach assets/fonts/ (siehe assets/fonts/README.md)
+#    - Hintergrundmusik nach assets/music/bgm.mp3
+#    - eigene/geklonte ElevenLabs-Stimmen in config/characters.yaml eintragen
+#      (IDs anzeigen: python -m pipeline list-voices)
+
+# 4. Alles prüfen
+python -m pipeline validate
+```
+
+## Ein Video produzieren
+
+```bash
+python -m pipeline produce --topic "Why your brain sabotages you before success"
+```
+
+Ergebnis in `output/<slug>/`:
+
+| Datei | Inhalt |
+|---|---|
+| `video.mp4` | 1080p30, H.264+AAC, -14 LUFS, Untertitel eingebrannt |
+| `thumbnail.png` | 1280×720, hoher Kontrast, Akzentfarbe, Stickman |
+| `description.txt` | Beschreibung inkl. Kapitel-Timestamps |
+| `metadata.json` | 5 Titel-Varianten (A/B), Tags, Kategorie |
+| `subtitles.srt` | für YouTube-CC zusätzlich hochladen |
+| `script.json` / `timeline.json` | Skript + berechnetes Timing (Review/Debug) |
+
+Danach prüfen und hochladen:
+
+```bash
+python -m pipeline upload --slug <slug>     # YouTube (Standard: privat)
+```
+
+Einzelne Stufen lassen sich getrennt ausführen und wiederholen — bereits
+generierte Audio-Zeilen werden gecacht (kein doppeltes ElevenLabs-Kontingent):
+
+```bash
+python -m pipeline script    --topic "..."   # nur Skript
+python -m pipeline voice     --slug <slug>   # nur Voiceover
+python -m pipeline render    --slug <slug>   # nur Video
+python -m pipeline thumbnail --slug <slug>
+python -m pipeline metadata  --slug <slug>
+```
+
+## Was die Qualität/Retention treibt
+
+Das Skript wird von `claude-opus-4-8` mit **structured outputs** erzeugt — jede
+Pose/Emotion/Hintergrund ist garantiert renderbar. Das System-Prompt erzwingt
+ein Retention-Playbook: Cold-Open-Hook in den ersten 15 Wörtern, Open Loops am
+Kapitelende, Pattern-Interrupts alle 30–45 s, Re-Hooks, konkrete Beispiele statt
+Abstraktion, ein CTA. Gleichzeitig gilt: **echte Psychologie, keine erfundenen
+Studien, Titel ohne Lügen** — Clickbait, der nicht eingelöst wird, killt den
+Kanal langfristig.
+
+Im Video selbst: Wort-Karaoke-Untertitel (das gesprochene Wort leuchtet in der
+Akzentfarbe), Kapitelkarten, schwebende Props, Kamera-Zoom/-Shake bei
+Schock-Momenten, Fortschrittsbalken, Sidechain-Ducking der Musik.
+
+## Konfiguration
+
+- `config/settings.yaml` — Auflösung, FPS, Ziellänge, Audio-Gaps, Untertitel,
+  Akzentfarbe, Sprache (`language: en` für maximale Reichweite, `de` möglich)
+- `config/characters.yaml` — der Cast: Aussehen (Farbe, Accessoire), Persona
+  (steuert das Skript) und Stimme (steuert ElevenLabs)
+
+**Charaktere ändern = nur YAML ändern.** Neue Posen/Props brauchen zusätzlich
+Rendering-Support in `pipeline/vocab.py` + `pipeline/stickman.py`/`renderer.py`.
+
+## Wöchentliche Automatisierung
+
+`examples/github-actions-weekly.yml` produziert jeden Montag automatisch ein
+Video aus der Themen-Backlog (`topics.txt`) und hängt es als Artifact zur
+Review an. Anleitung steht im File. Empfehlung: das Video **vor** dem
+Veröffentlichen immer kurz prüfen (Upload-Stufe lädt standardmäßig privat hoch).
+
+## Smoke-Test (ohne API-Keys)
+
+```bash
+python scripts/smoke_test.py    # rendert Beispiel-Frames + Thumbnail nach output/_smoke/
+```
+
+## Kosten pro Video (Größenordnung, 12 min)
+
+| Posten | ca. |
+|---|---|
+| Claude (Skript, ~10 Calls) | 1–3 USD |
+| ElevenLabs (~1.800 Wörter ≈ 10–12 k Zeichen) | Kontingent des Abos |
+| Rendern | nur CPU-Zeit (~20–60 min je nach Maschine) |
+
+## Troubleshooting
+
+- **`ffmpeg not found`** → installieren, `python -m pipeline validate` erneut.
+- **ElevenLabs 4xx** → `voice_id` prüfen (`list-voices`), `output_format` ggf.
+  auf `mp3_44100_128` lassen (höhere Formate sind Plan-abhängig).
+- **Untertitel-Font falsch** → Font systemweit installieren und
+  `subtitles.font_name` setzen (libass nutzt fontconfig).
+- **Video zu lang/kurz** → `video.target_minutes` anpassen; die echte Länge
+  ergibt sich aus dem gesprochenen Audio.

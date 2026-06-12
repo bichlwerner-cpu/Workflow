@@ -1,0 +1,13 @@
+# Core pipeline
+anthropic>=0.69.0        # Claude API (script generation, official SDK)
+requests>=2.31           # ElevenLabs REST API
+pydantic>=2.6            # script schema validation / structured outputs
+PyYAML>=6.0              # config files
+Pillow>=10.0             # stickman rendering, thumbnails
+
+# Optional: YouTube upload (only needed for `python -m pipeline upload`)
+google-api-python-client>=2.100
+google-auth-oauthlib>=1.1
+google-auth-httplib2>=0.1
+
+# System requirement (not pip-installable): ffmpeg >= 5.0 must be on PATH.

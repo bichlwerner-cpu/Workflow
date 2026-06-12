@@ -1,0 +1,23 @@
+# Secrets
+.env
+.secrets/
+client_secrets.json
+token.json
+
+# Pipeline output
+output/
+
+# Local assets that should not be committed (licensing)
+assets/music/*.mp3
+assets/music/*.wav
+assets/fonts/*.ttf
+assets/fonts/*.otf
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS
+.DS_Store

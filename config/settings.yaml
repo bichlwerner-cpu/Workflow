@@ -1,0 +1,69 @@
+# ----------------------------------------------------------------------------
+# Stickman Studio — global settings
+# ----------------------------------------------------------------------------
+
+# Script language. English targets the largest audience for psychology content.
+language: en
+
+video:
+  width: 1920
+  height: 1080
+  fps: 30
+  # Internal render scale for anti-aliased lines (2.0 = draw at 4K, downscale).
+  # Lower to 1.5 for faster renders on weak machines.
+  supersample: 2.0
+  crf: 19            # x264 quality (lower = better, 17-21 sensible)
+  preset: medium     # x264 speed/quality tradeoff
+  target_minutes: 12 # target spoken length of one video
+  words_per_minute: 150
+
+audio:
+  # mp3_44100_128 works on every paid ElevenLabs plan. Upgrade options if your
+  # plan supports them: mp3_44100_192 (Creator+), pcm_44100 (Pro+, lossless —
+  # wrapped to WAV locally without transcoding).
+  output_format: mp3_44100_128
+  sample_rate: 44100
+  line_gap: 0.18     # pause between dialogue lines (seconds)
+  scene_gap: 0.55    # extra pause between scenes
+  chapter_gap: 0.90  # extra pause between chapters
+  lead_in: 0.50      # silence before the first word
+  tail: 2.00         # silence + held frame after the last word
+  bgm_path: assets/music/bgm.mp3   # optional; skipped if the file is missing
+  bgm_volume_db: -24               # background music level before ducking
+  loudnorm: true                   # normalize final mix to -14 LUFS (YouTube)
+
+subtitles:
+  burn_in: true      # hard-burn styled captions into the video
+  karaoke: true      # per-word highlight (strong retention device)
+  font_name: DejaVu Sans
+  font_size: 60
+  margin_v: 72
+  max_words_per_cue: 5
+  max_chars_per_cue: 36
+
+style:
+  accent: "#FFD60A"        # channel accent color (props, highlights, progress bar)
+  progress_bar: true       # thin progress bar at the bottom (retention device)
+  chapter_cards: true      # chapter title overlay at each chapter start
+  watermark: ""            # e.g. "@YourHandle", drawn bottom-right; empty = off
+
+# First readable TTF wins. Drop a display font (e.g. Anton, Archivo Black)
+# into assets/fonts/ for better thumbnails and captions.
+fonts:
+  - assets/fonts/Anton-Regular.ttf
+  - /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
+  - /usr/share/fonts/dejavu/DejaVuSans-Bold.ttf
+  - /Library/Fonts/Arial Bold.ttf
+  - C:/Windows/Fonts/arialbd.ttf
+
+llm:
+  model: claude-opus-4-8
+  max_tokens: 16000
+
+youtube:
+  category_id: "27"        # Education
+  privacy_status: private  # upload private first, publish manually after review
+  made_for_kids: false
+  description_footer: |
+    ---
+    New video every week. Subscribe so you don't miss the next one.
