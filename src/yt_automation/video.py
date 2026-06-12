@@ -13,8 +13,9 @@ import textwrap
 from enum import Enum
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 
+from .fonts import bold_font as _font
 from .script import VideoScript, script_to_voiceover_text
 
 
@@ -30,18 +31,6 @@ def dimensions(fmt: VideoFormat) -> tuple[int, int]:
 BG_COLOR = (15, 17, 21)
 FG_COLOR = (240, 240, 240)
 ACCENT = (255, 122, 89)
-
-
-def _font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    for candidate in (
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
-        "/Library/Fonts/Arial Bold.ttf",
-        "C:/Windows/Fonts/arialbd.ttf",
-    ):
-        if Path(candidate).exists():
-            return ImageFont.truetype(candidate, size)
-    return ImageFont.load_default()
 
 
 def render_title_card(script: VideoScript, out_path: Path, fmt: VideoFormat) -> Path:

@@ -1,15 +1,32 @@
 # yt-automation
 
-Schlanke Python-CLI-Pipeline für YouTube-/Shorts-Content. **Default ist komplett kostenlos.**
+Schlanke Python-CLI-Pipeline für YouTube-/Shorts-Content mit eigenem **Stick-Man Brand-Charakter** (faceless). **Default ist komplett kostenlos.**
 
 ```
 Skript-Datei (du) → edge-tts (Stimme) → Whisper (Captions)
-                  → FFmpeg + Footage + Musik → .mp4
+                  → FFmpeg + Stick-Man/Footage + Musik → .mp4
 ```
 
 ## Workflows
 
-### Kostenloser Workflow (empfohlen)
+### Stick-Man Brand-Workflow (empfohlen für faceless Channel)
+
+Dein Charakter wird **einmal** in `assets/character.json` definiert (Farben, Accessoire, Name) und sieht danach in jedem Video und Bild identisch aus — das ist deine Brand. Kein Footage nötig, kein Copyright-Risiko.
+
+```bash
+# 1. Charakter anlegen (einmalig) -- rendert auch eine Posen-Vorschau
+yt-automation stickman init --name "Stixx" --accent-color "#FF7A59" --accessory cap
+
+# 2. Video rendern: animierter Charakter als Hintergrund
+yt-automation from-text mein_skript.txt --format shorts --stickman
+
+# 3. Passendes Thumbnail im selben Look
+yt-automation stickman thumbnail "Warum dein Gehirn dich anlügt" --pose point
+```
+
+Im Video läuft der Charakter rein und gestikuliert dann im Loop (idle, wave, point, think, celebrate, …) mit subtiler Dauerbewegung, auf Brand-Hintergrund mit Spot, Partikeln und Kanal-Tag.
+
+### Kostenloser Workflow mit Footage
 
 Du schreibst dein Skript selbst — z. B. mit Gemini, ChatGPT oder von Hand — und legst es als `.txt` ab. Der Rest läuft automatisch:
 
@@ -70,6 +87,7 @@ cp .env.example .env              # ggf. anpassen
 | `OUTPUT_DIR` | `./out` | Wohin Skript/Audio/Video gespeichert werden |
 | `MUSIC_DIR` | `./assets/music` | Hintergrundmusik (Auto-Pick) |
 | `FOOTAGE_DIR` | `./assets/footage` | Footage-Pool |
+| `CHARACTER_FILE` | `./assets/character.json` | Stick-Man-Charakter-Definition |
 | `ANTHROPIC_API_KEY` | – | Nur für `run`/`script` (Claude) |
 | `ELEVENLABS_API_KEY` | – | Nur wenn `TTS_PROVIDER=elevenlabs` |
 
@@ -79,17 +97,27 @@ cp .env.example .env              # ggf. anpassen
 # Stimmen anschauen
 yt-automation voices --language de
 
+# Stick-Man Brand-Charakter
+yt-automation stickman init --name "Stixx" --accessory cap   # einmalig
+yt-automation stickman sheet                                  # alle Posen als Übersicht
+yt-automation stickman pose wave --transparent                # PNG, z.B. für Canva/Profilbild
+yt-automation stickman thumbnail "Mein Titel" --pose point    # Thumbnail 1280x720
+yt-automation stickman video --duration 15                    # Hintergrund-Clip zum Testen
+
 # Footage holen
 yt-automation footage download "https://www.youtube.com/watch?v=..."
 yt-automation footage clip ./assets/footage/abc.mp4 --start 0:30 --end 0:45 --label scene1
 yt-automation footage list
 
-# Komplettes Video aus Text-Datei
+# Komplettes Video aus Text-Datei (Stick-Man als Background)
+yt-automation from-text skript.txt --format shorts --stickman
+
+# ... oder mit Footage als Background
 yt-automation from-text skript.txt --format shorts \
   --background ./assets/footage --word-captions
 
 # Bezahl-Variante mit Claude
-yt-automation run "Topic" --format shorts --word-captions
+yt-automation run "Topic" --format shorts --stickman --word-captions
 ```
 
 ## Struktur
@@ -103,6 +131,8 @@ src/yt_automation/
 ├── audio_mix.py   # Voice + Musik mit Sidechain-Ducking
 ├── captions.py    # faster-whisper → ASS Word-Captions
 ├── footage.py     # yt-dlp + FFmpeg Clip + Background-Prep
+├── stickman.py    # Brand-Charakter: Posen, Thumbnails, animierte Backgrounds
+├── fonts.py       # Font-Lookup für Pillow
 ├── video.py       # Render-Pfade (Title-Card / Footage)
 └── pipeline.py    # End-to-End-Orchestrator
 ```

@@ -10,6 +10,7 @@ from rich.console import Console
 from rich.table import Table
 
 from . import footage as footage_mod
+from . import stickman as stickman_mod
 from .config import Config
 from .pipeline import run_from_text, run_pipeline
 from .script import (
@@ -28,6 +29,10 @@ app = typer.Typer(
 )
 footage_app = typer.Typer(help="Footage assets (download, clip, list).")
 app.add_typer(footage_app, name="footage")
+stickman_app = typer.Typer(
+    help="Konsistenter Brand-Charakter: Posen-Bilder, Thumbnails, Video-Backgrounds."
+)
+app.add_typer(stickman_app, name="stickman")
 console = Console()
 
 
@@ -46,6 +51,13 @@ def from_text_cmd(
         Optional[Path],
         typer.Option(help="Footage-Datei oder -Verzeichnis als Hintergrund."),
     ] = None,
+    stickman: Annotated[
+        bool,
+        typer.Option(
+            "--stickman",
+            help="Animierter Stick-Man-Charakter als Hintergrund (statt Footage).",
+        ),
+    ] = False,
     music: Annotated[
         Optional[Path],
         typer.Option(help="Musik-Datei. Sonst Auto-Pick aus MUSIC_DIR."),
@@ -65,12 +77,14 @@ def from_text_cmd(
     )
     if background:
         console.print(f"[bold]Background:[/bold] {background}")
+    elif stickman:
+        console.print(f"[bold]Background:[/bold] stickman ({cfg.character_file})")
 
     with console.status("Rendering..."):
         result = run_from_text(
             cfg, text_path,
             language=language, fmt=fmt,
-            background=background, music=music,
+            background=background, stickman=stickman, music=music,
             word_captions=word_captions,
         )
 
@@ -93,6 +107,7 @@ def run(
     language: Annotated[str, typer.Option()] = "de",
     fmt: Annotated[VideoFormat, typer.Option("--format")] = VideoFormat.LANDSCAPE,
     background: Annotated[Optional[Path], typer.Option()] = None,
+    stickman: Annotated[bool, typer.Option("--stickman")] = False,
     music: Annotated[Optional[Path], typer.Option()] = None,
     word_captions: Annotated[bool, typer.Option()] = False,
 ) -> None:
@@ -102,7 +117,7 @@ def run(
         result = run_pipeline(
             cfg, topic,
             duration_seconds=duration, style=style, language=language,
-            fmt=fmt, background=background, music=music,
+            fmt=fmt, background=background, stickman=stickman, music=music,
             word_captions=word_captions,
         )
     console.print(f"[green]✓[/green] Script   -> {result.script_path}")
@@ -232,6 +247,127 @@ def footage_list() -> None:
         size_mb = p.stat().st_size / (1024 * 1024)
         table.add_row(p.name, f"{size_mb:.1f} MB")
     console.print(table)
+
+
+# ============================================================
+# Stickman subcommands (Brand-Charakter)
+# ============================================================
+
+
+def _load_spec(cfg: Config) -> stickman_mod.CharacterSpec:
+    if not cfg.character_file.exists():
+        console.print(
+            f"[yellow]Kein Charakter unter {cfg.character_file} -- "
+            "lege Default an. Anpassen mit `yt-automation stickman init`.[/yellow]"
+        )
+    return stickman_mod.CharacterSpec.load_or_create(cfg.character_file)
+
+
+@stickman_app.command("init")
+def stickman_init(
+    name: Annotated[str, typer.Option(help="Name des Charakters (Brand-Tag).")] = "Stixx",
+    line_color: Annotated[str, typer.Option(help="Strichfarbe, Hex.")] = "#F2F2F2",
+    accent_color: Annotated[str, typer.Option(help="Akzentfarbe (Accessoire, Linien).")] = "#FF7A59",
+    bg_color: Annotated[str, typer.Option(help="Hintergrundfarbe, Hex.")] = "#0F1115",
+    accessory: Annotated[
+        str,
+        typer.Option(help=f"Eins von: {', '.join(stickman_mod.ACCESSORIES)}."),
+    ] = "cap",
+    eyes: Annotated[bool, typer.Option(help="Augen zeichnen.")] = True,
+    force: Annotated[bool, typer.Option("--force", help="Vorhandene Datei überschreiben.")] = False,
+) -> None:
+    """Charakter-Datei anlegen -- die 'DNA' deiner Brand (einmalig)."""
+    cfg = Config.load()
+    if cfg.character_file.exists() and not force:
+        console.print(
+            f"[red]{cfg.character_file} existiert schon.[/red] "
+            "Mit --force überschreiben -- aber Achtung: dann ändert sich "
+            "dein Charakter in allen zukünftigen Videos."
+        )
+        raise typer.Exit(1)
+    if accessory not in stickman_mod.ACCESSORIES:
+        console.print(f"[red]accessory muss eins von {stickman_mod.ACCESSORIES} sein.[/red]")
+        raise typer.Exit(1)
+
+    spec = stickman_mod.CharacterSpec(
+        name=name, line_color=line_color, accent_color=accent_color,
+        bg_color=bg_color, accessory=accessory, eyes=eyes,
+    )
+    spec.save(cfg.character_file)
+    sheet = stickman_mod.render_pose_sheet(spec, cfg.output_dir / "pose_sheet.png")
+    console.print(f"[green]✓[/green] Charakter -> {cfg.character_file}")
+    console.print(f"[green]✓[/green] Vorschau  -> {sheet}")
+
+
+@stickman_app.command("sheet")
+def stickman_sheet(
+    out: Annotated[Optional[Path], typer.Option()] = None,
+) -> None:
+    """Übersicht aller Posen als ein Bild rendern."""
+    cfg = Config.load()
+    spec = _load_spec(cfg)
+    path = stickman_mod.render_pose_sheet(spec, out or cfg.output_dir / "pose_sheet.png")
+    console.print(f"[green]✓[/green] {path}")
+
+
+@stickman_app.command("pose")
+def stickman_pose(
+    pose: Annotated[str, typer.Argument(help=f"Eine von: {', '.join(stickman_mod.POSES)}.")],
+    size: Annotated[int, typer.Option(help="Kantenlänge in Pixeln (quadratisch).")] = 1080,
+    transparent: Annotated[
+        bool, typer.Option("--transparent", help="Transparenter Hintergrund (für Canva etc.).")
+    ] = False,
+    out: Annotated[Optional[Path], typer.Option()] = None,
+) -> None:
+    """Einzelne Pose als PNG rendern (Branding, Profilbild, Overlays)."""
+    cfg = Config.load()
+    spec = _load_spec(cfg)
+    suffix = "_transparent" if transparent else ""
+    path = stickman_mod.render_pose_image(
+        spec, pose,
+        out or cfg.output_dir / f"pose_{pose}{suffix}.png",
+        size=size, transparent=transparent,
+    )
+    console.print(f"[green]✓[/green] {path}")
+
+
+@stickman_app.command("thumbnail")
+def stickman_thumbnail(
+    title: Annotated[str, typer.Argument(help="Titel-Text auf dem Thumbnail.")],
+    pose: Annotated[str, typer.Option()] = "point",
+    fmt: Annotated[
+        VideoFormat, typer.Option("--format", help="landscape (1280x720) oder shorts (1080x1920).")
+    ] = VideoFormat.LANDSCAPE,
+    out: Annotated[Optional[Path], typer.Option()] = None,
+) -> None:
+    """Gebrandetes Thumbnail mit Charakter + Titel rendern."""
+    cfg = Config.load()
+    spec = _load_spec(cfg)
+    w, h = (1280, 720) if fmt is VideoFormat.LANDSCAPE else (1080, 1920)
+    path = stickman_mod.render_thumbnail(
+        spec, title,
+        out or cfg.output_dir / "thumbnail.png",
+        pose=pose, width=w, height=h,
+    )
+    console.print(f"[green]✓[/green] {path}")
+
+
+@stickman_app.command("video")
+def stickman_video(
+    duration: Annotated[float, typer.Option(help="Länge in Sekunden.")] = 30.0,
+    fmt: Annotated[VideoFormat, typer.Option("--format")] = VideoFormat.SHORTS,
+    out: Annotated[Optional[Path], typer.Option()] = None,
+) -> None:
+    """Animierten Hintergrund-Clip rendern (ohne Audio), z.B. zum Testen."""
+    cfg = Config.load()
+    spec = _load_spec(cfg)
+    w, h = (1920, 1080) if fmt is VideoFormat.LANDSCAPE else (1080, 1920)
+    with console.status(f"Rendere {duration:.0f}s {fmt.value}..."):
+        path = stickman_mod.render_background_video(
+            spec, duration, w, h,
+            out or cfg.output_dir / "stickman_background.mp4",
+        )
+    console.print(f"[green]✓[/green] {path}")
 
 
 if __name__ == "__main__":

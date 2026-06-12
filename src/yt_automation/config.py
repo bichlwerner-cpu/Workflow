@@ -32,6 +32,7 @@ class Config:
     output_dir: Path
     music_dir: Path
     footage_dir: Path
+    character_file: Path
 
     @classmethod
     def load(cls) -> "Config":
@@ -42,6 +43,10 @@ class Config:
         footage_dir = Path(os.environ.get("FOOTAGE_DIR", "./assets/footage")).resolve()
         music_dir.mkdir(parents=True, exist_ok=True)
         footage_dir.mkdir(parents=True, exist_ok=True)
+
+        character_file = Path(
+            os.environ.get("CHARACTER_FILE", "./assets/character.json")
+        ).resolve()
 
         provider = os.environ.get("TTS_PROVIDER", "edge").strip().lower()
         if provider not in ("edge", "elevenlabs"):
@@ -66,6 +71,7 @@ class Config:
             output_dir=out,
             music_dir=music_dir,
             footage_dir=footage_dir,
+            character_file=character_file,
         )
 
     def require_anthropic(self) -> None:

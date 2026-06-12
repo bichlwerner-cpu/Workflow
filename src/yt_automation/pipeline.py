@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import audio_mix, captions, footage
+from . import audio_mix, captions, footage, stickman as stickman_mod
 from .config import Config
 from .script import (
     Style,
@@ -40,6 +40,7 @@ def render_from_script(
     *,
     fmt: VideoFormat = VideoFormat.LANDSCAPE,
     background: Path | None = None,
+    stickman: bool = False,
     music: Path | None = None,
     word_captions: bool = False,
     language: str = "de",
@@ -78,6 +79,13 @@ def render_from_script(
         w, h = dimensions(fmt)
         bg = footage.prepare_background(background, duration, w, h, workdir=out)
         render_with_footage(bg, audio_path, subtitle_path, video_path)
+    elif stickman:
+        w, h = dimensions(fmt)
+        spec = stickman_mod.CharacterSpec.load_or_create(cfg.character_file)
+        bg = stickman_mod.render_background_video(
+            spec, duration, w, h, out / "background.mp4",
+        )
+        render_with_footage(bg, audio_path, subtitle_path, video_path)
     else:
         render_with_title_card(
             script, audio_path, subtitle_path, video_path,
@@ -101,6 +109,7 @@ def run_pipeline(
     language: str = "de",
     fmt: VideoFormat = VideoFormat.LANDSCAPE,
     background: Path | None = None,
+    stickman: bool = False,
     music: Path | None = None,
     word_captions: bool = False,
 ) -> PipelineResult:
@@ -112,7 +121,7 @@ def run_pipeline(
     )
     return render_from_script(
         cfg, script,
-        fmt=fmt, background=background, music=music,
+        fmt=fmt, background=background, stickman=stickman, music=music,
         word_captions=word_captions, language=language,
     )
 
@@ -124,6 +133,7 @@ def run_from_text(
     language: str = "de",
     fmt: VideoFormat = VideoFormat.SHORTS,
     background: Path | None = None,
+    stickman: bool = False,
     music: Path | None = None,
     word_captions: bool = True,
 ) -> PipelineResult:
@@ -131,6 +141,6 @@ def run_from_text(
     script = from_text(text_path)
     return render_from_script(
         cfg, script,
-        fmt=fmt, background=background, music=music,
+        fmt=fmt, background=background, stickman=stickman, music=music,
         word_captions=word_captions, language=language,
     )

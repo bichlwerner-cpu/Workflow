@@ -1,0 +1,10 @@
+{
+  "name": "Stixx",
+  "line_color": "#F2F2F2",
+  "accent_color": "#FF7A59",
+  "bg_color": "#0F1115",
+  "line_width": 0.05,
+  "head_ratio": 0.16,
+  "accessory": "cap",
+  "eyes": true
+}
