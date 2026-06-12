@@ -7,7 +7,9 @@
     "line_width": 0.05,
     "head_ratio": 0.16,
     "accessory": "cap",
-    "eyes": true
+    "eyes": true,
+    "outline_color": "#101218",
+    "outline_width": 0.014
   },
   "size": 1080,
   "poses": [

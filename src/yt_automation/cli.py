@@ -274,6 +274,12 @@ def stickman_init(
         typer.Option(help=f"Eins von: {', '.join(stickman_mod.ACCESSORIES)}."),
     ] = "cap",
     eyes: Annotated[bool, typer.Option(help="Augen zeichnen.")] = True,
+    outline_color: Annotated[
+        str, typer.Option(help="Konturfarbe (Sichtbarkeit auf hellen Hintergründen).")
+    ] = "#101218",
+    outline_width: Annotated[
+        float, typer.Option(help="Konturstärke relativ zur Höhe; 0 = keine Kontur.")
+    ] = 0.014,
     force: Annotated[bool, typer.Option("--force", help="Vorhandene Datei überschreiben.")] = False,
 ) -> None:
     """Charakter-Datei anlegen -- die 'DNA' deiner Brand (einmalig)."""
@@ -292,6 +298,7 @@ def stickman_init(
     spec = stickman_mod.CharacterSpec(
         name=name, line_color=line_color, accent_color=accent_color,
         bg_color=bg_color, accessory=accessory, eyes=eyes,
+        outline_color=outline_color, outline_width=outline_width,
     )
     spec.save(cfg.character_file)
     sheet = stickman_mod.render_pose_sheet(spec, cfg.output_dir / "pose_sheet.png")

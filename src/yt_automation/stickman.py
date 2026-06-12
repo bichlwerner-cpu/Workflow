@@ -45,6 +45,8 @@ class CharacterSpec:
     head_ratio: float = 0.16    # Kopfdurchmesser relativ zur Charakterhöhe
     accessory: str = "cap"
     eyes: bool = True
+    outline_color: str = "#101218"  # Kontur, macht die Figur auf hellen
+    outline_width: float = 0.014    # Hintergründen sichtbar; 0 = aus
 
     def save(self, path: Path) -> Path:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -99,6 +101,12 @@ def _blend(a: str, b: str, t: float) -> tuple[int, int, int]:
 # zum Oberarm/Oberschenkel.
 
 
+# Gesichtsausdrücke: steuern Mund, Augenbrauen und Augenform
+EXPRESSIONS = (
+    "neutral", "smile", "grin", "flat", "sad", "angry", "shocked", "sleepy",
+)
+
+
 @dataclass(frozen=True)
 class Pose:
     torso: float = 0.0       # Lehnen des Oberkörpers, + = vor
@@ -113,6 +121,7 @@ class Pose:
     r_knee: float = 4.0
     lift: float = 0.0        # vertikaler Versatz (Sprung), relativ zur Höhe
     rot: float = 0.0         # Rotation der ganzen Figur (z.B. liegend)
+    expression: str = "neutral"
 
 
 def walk_pose(phase: float) -> Pose:
@@ -137,47 +146,62 @@ def walk_pose(phase: float) -> Pose:
 POSES: dict[str, Pose] = {
     # Neutral / Gestik
     "idle": Pose(),
-    "wave": Pose(torso=2, head=-3, r_shoulder=150, r_elbow=35),
-    "point": Pose(torso=5, r_shoulder=95, r_elbow=-5, l_shoulder=18, l_elbow=12),
-    "point_up": Pose(torso=2, head=-8, r_shoulder=165, r_elbow=5),
+    "wave": Pose(torso=2, head=-3, r_shoulder=150, r_elbow=35, expression="smile"),
+    "point": Pose(
+        torso=5, r_shoulder=95, r_elbow=-5, l_shoulder=18, l_elbow=12,
+        expression="smile",
+    ),
+    "point_up": Pose(torso=2, head=-8, r_shoulder=165, r_elbow=5, expression="smile"),
     "point_down": Pose(torso=8, head=14, r_shoulder=35, r_elbow=-12),
-    "present": Pose(torso=3, r_shoulder=60, r_elbow=35, l_shoulder=14),
+    "present": Pose(torso=3, r_shoulder=60, r_elbow=35, l_shoulder=14, expression="smile"),
     "explain": Pose(
         torso=2, l_shoulder=45, l_elbow=42, r_shoulder=52, r_elbow=38,
     ),
-    "think": Pose(torso=-2, head=9, r_shoulder=55, r_elbow=125, l_shoulder=12),
+    "think": Pose(
+        torso=-2, head=9, r_shoulder=55, r_elbow=125, l_shoulder=12,
+        expression="flat",
+    ),
     "shrug": Pose(
         torso=-2, head=6,
         l_shoulder=42, l_elbow=95, r_shoulder=-42, r_elbow=-95,
+        expression="flat",
     ),
     # Emotionen
     "happy": Pose(
         torso=-6, head=-8, lift=0.01,
         l_shoulder=-28, l_elbow=-15, r_shoulder=-34, r_elbow=-20,
+        expression="grin",
     ),
     "celebrate": Pose(
         torso=-3, head=-6, lift=0.025,
         l_shoulder=160, l_elbow=15, r_shoulder=205, r_elbow=-15,
         l_hip=12, l_knee=-8, r_hip=-12, r_knee=8,
+        expression="grin",
     ),
     "sad": Pose(
         torso=14, head=30,
         l_shoulder=-4, l_elbow=-4, r_shoulder=-6, r_elbow=-4,
         l_knee=-7, r_knee=7,
+        expression="sad",
     ),
     "angry": Pose(
         torso=10, head=-4,
         l_shoulder=55, l_elbow=125, r_shoulder=70, r_elbow=120,
+        expression="angry",
     ),
     "shocked": Pose(
         torso=-10, head=-10,
         l_shoulder=150, l_elbow=25, r_shoulder=215, r_elbow=-25,
         l_hip=14, l_knee=-6, r_hip=-14, r_knee=6,
+        expression="shocked",
     ),
-    "facepalm": Pose(torso=6, head=14, r_shoulder=70, r_elbow=132),
+    "facepalm": Pose(
+        torso=6, head=14, r_shoulder=70, r_elbow=132, expression="flat",
+    ),
     "dab": Pose(
         torso=8, head=22,
         l_shoulder=215, l_elbow=0, r_shoulder=150, r_elbow=-115,
+        expression="grin",
     ),
     # Bewegung
     "walk1": walk_pose(0.15),
@@ -191,6 +215,7 @@ POSES: dict[str, Pose] = {
         torso=-4, head=-8, lift=0.06,
         l_shoulder=140, l_elbow=20, r_shoulder=215, r_elbow=-20,
         l_hip=45, l_knee=-90, r_hip=35, r_knee=-95,
+        expression="grin",
     ),
     "sit": Pose(
         torso=-2,
@@ -201,15 +226,19 @@ POSES: dict[str, Pose] = {
         rot=90, head=-4,
         l_shoulder=12, l_elbow=10, r_shoulder=-14, r_elbow=-10,
         l_hip=10, l_knee=-8, r_hip=-8, r_knee=6,
+        expression="sleepy",
     ),
 }
 
 
 def _lerp_pose(a: Pose, b: Pose, t: float) -> Pose:
-    vals = {
-        f.name: getattr(a, f.name) + (getattr(b, f.name) - getattr(a, f.name)) * t
-        for f in fields(Pose)
-    }
+    vals = {}
+    for f in fields(Pose):
+        va, vb = getattr(a, f.name), getattr(b, f.name)
+        if isinstance(va, (int, float)):
+            vals[f.name] = va + (vb - va) * t
+        else:
+            vals[f.name] = vb if t >= 0.5 else va
     return Pose(**vals)
 
 
@@ -228,6 +257,32 @@ def _polar(origin: Point, angle_deg: float, length: float) -> Point:
 # ============================================================
 
 
+def _tapered(
+    draw: ImageDraw.ImageDraw,
+    p1: Point,
+    p2: Point,
+    w1: float,
+    w2: float,
+    col: tuple[int, int, int],
+) -> None:
+    """Linie mit verschiedener Dicke an Anfang/Ende und runden Kappen."""
+    dx, dy = p2[0] - p1[0], p2[1] - p1[1]
+    dist = math.hypot(dx, dy) or 1.0
+    nx, ny = -dy / dist, dx / dist
+    draw.polygon(
+        [
+            (p1[0] + nx * w1 / 2, p1[1] + ny * w1 / 2),
+            (p2[0] + nx * w2 / 2, p2[1] + ny * w2 / 2),
+            (p2[0] - nx * w2 / 2, p2[1] - ny * w2 / 2),
+            (p1[0] - nx * w1 / 2, p1[1] - ny * w1 / 2),
+        ],
+        fill=col,
+    )
+    for p, w in ((p1, w1), (p2, w2)):
+        r = w / 2
+        draw.ellipse([p[0] - r, p[1] - r, p[0] + r, p[1] + r], fill=col)
+
+
 def draw_character(
     draw: ImageDraw.ImageDraw,
     spec: CharacterSpec,
@@ -240,7 +295,7 @@ def draw_character(
     """Zeichnet den Charakter; `foot` ist der Bodenkontaktpunkt (Mitte)."""
     h = height
     head_r = spec.head_ratio * h / 2
-    lw = max(2, round(spec.line_width * h))
+    lw = max(2.0, spec.line_width * h)
     color = on_color or _hex_rgb(spec.line_color)
     dim = _blend(spec.line_color, spec.bg_color, 0.4)
     accent = _hex_rgb(spec.accent_color)
@@ -250,39 +305,132 @@ def draw_character(
     shoulder = _polar(pelvis, 180 - pose.torso, 0.28 * h)
     head_c = _polar(neck, 180 - pose.torso - pose.head, 0.04 * h + head_r)
 
-    def limb(origin: Point, a1: float, l1: float, a2: float, l2: float,
-             col: tuple[int, int, int]) -> None:
-        mid = _polar(origin, a1, l1)
-        end = _polar(mid, a1 + a2, l2)
-        draw.line([origin, mid, end], fill=col, width=lw, joint="curve")
-        for p in (origin, mid, end):
-            r = lw / 2 - 0.5
-            draw.ellipse([p[0] - r, p[1] - r, p[0] + r, p[1] + r], fill=col)
+    def paint(inflate: float, mono: tuple[int, int, int] | None) -> None:
+        col_main = mono or color
+        col_dim = mono or dim
+        col_acc = mono or accent
 
-    # hintere Gliedmaßen zuerst (gedimmt), dann Körper, dann vordere
-    limb(shoulder, pose.l_shoulder, 0.17 * h, pose.l_elbow, 0.15 * h, dim)
-    limb(pelvis, pose.l_hip, 0.25 * h, pose.l_knee, 0.23 * h, dim)
+        def arm(a1: float, a2: float, col: tuple[int, int, int]) -> None:
+            elbow = _polar(shoulder, a1, 0.17 * h)
+            hand = _polar(elbow, a1 + a2, 0.15 * h)
+            o = inflate * 2
+            _tapered(draw, shoulder, elbow, lw + o, lw * 0.85 + o, col)
+            _tapered(draw, elbow, hand, lw * 0.85 + o, lw * 0.7 + o, col)
+            r = lw * 0.62 + inflate
+            draw.ellipse([hand[0] - r, hand[1] - r, hand[0] + r, hand[1] + r],
+                         fill=col)
 
-    draw.line([pelvis, neck], fill=color, width=lw, joint="curve")
+        def leg(a1: float, a2: float, col: tuple[int, int, int]) -> None:
+            knee = _polar(pelvis, a1, 0.25 * h)
+            ankle = _polar(knee, a1 + a2, 0.23 * h)
+            o = inflate * 2
+            _tapered(draw, pelvis, knee, lw * 1.1 + o, lw * 0.95 + o, col)
+            _tapered(draw, knee, ankle, lw * 0.95 + o, lw * 0.8 + o, col)
+            # Schuh: nach vorne gezogene Ellipse
+            sw, sh = lw * 2.1, lw * 1.05
+            draw.ellipse(
+                [ankle[0] - sw * 0.35 - inflate, ankle[1] - sh * 0.55 - inflate,
+                 ankle[0] + sw * 0.65 + inflate, ankle[1] + sh * 0.45 + inflate],
+                fill=col,
+            )
 
-    limb(pelvis, pose.r_hip, 0.25 * h, pose.r_knee, 0.23 * h, color)
-    limb(shoulder, pose.r_shoulder, 0.17 * h, pose.r_elbow, 0.15 * h, color)
+        # hintere Gliedmaßen zuerst (gedimmt), dann Körper, dann vordere
+        arm(pose.l_shoulder, pose.l_elbow, col_dim)
+        leg(pose.l_hip, pose.l_knee, col_dim)
 
-    # Kopf: gefüllt, liest sich in jeder Größe sauber
-    bbox = [head_c[0] - head_r, head_c[1] - head_r,
-            head_c[0] + head_r, head_c[1] + head_r]
-    draw.ellipse(bbox, fill=color)
+        # Torso: unten schmaler, oben breiter (Schultern)
+        _tapered(draw, pelvis, neck,
+                 lw * 0.95 + inflate * 2, lw * 1.25 + inflate * 2, col_main)
 
-    _draw_accessory(draw, spec, head_c, head_r, lw, accent)
+        leg(pose.r_hip, pose.r_knee, col_main)
+        arm(pose.r_shoulder, pose.r_elbow, col_main)
 
-    # Augen nach dem Accessoire, damit z.B. die Cap sie nicht verdeckt
+        # Kopf: gefüllt, liest sich in jeder Größe sauber
+        r = head_r + inflate
+        draw.ellipse([head_c[0] - r, head_c[1] - r,
+                      head_c[0] + r, head_c[1] + r], fill=col_main)
+
+        _draw_accessory(draw, spec, head_c, head_r, lw, col_acc,
+                        inflate=inflate, decorations=inflate == 0)
+
+    # Kontur-Pass: ganze Silhouette leicht aufgepumpt in Konturfarbe,
+    # macht die Figur auch auf hellen Hintergründen sichtbar
+    ow = spec.outline_width * h
+    if ow > 0:
+        paint(ow, _hex_rgb(spec.outline_color))
+    paint(0.0, None)
+    _draw_face(draw, spec, pose.expression, head_c, head_r)
+
+
+def _draw_face(
+    draw: ImageDraw.ImageDraw,
+    spec: CharacterSpec,
+    expression: str,
+    head_c: Point,
+    head_r: float,
+) -> None:
+    """Augen, Brauen und Mund nach Ausdruck; Farben = bg_color auf dem
+    gefüllten Kopf. Nach dem Accessoire, damit die Cap nichts verdeckt."""
+    fc = _hex_rgb(spec.bg_color)
+    x, y = head_c
+    hr = head_r
+    stroke = max(2, round(hr * 0.10))
+    eye_y = y + 0.10 * hr
+    eye_xs = (x + 0.22 * hr, x + 0.60 * hr)
+
     if spec.eyes:
-        eye_col = _hex_rgb(spec.bg_color)
-        er = max(2.0, head_r * 0.13)
-        for ex in (0.22, 0.60):
-            p = (head_c[0] + ex * head_r, head_c[1] + 0.10 * head_r)
-            draw.ellipse([p[0] - er, p[1] - er, p[0] + er, p[1] + er],
-                         fill=eye_col)
+        if expression == "sleepy":
+            # geschlossene Augen: kleine Bögen
+            for ex in eye_xs:
+                r = 0.16 * hr
+                draw.arc([ex - r, eye_y - r * 0.4, ex + r, eye_y + r],
+                         20, 160, fill=fc, width=stroke)
+        else:
+            er = hr * (0.18 if expression == "shocked" else 0.13)
+            er = max(2.0, er)
+            for ex in eye_xs:
+                draw.ellipse([ex - er, eye_y - er, ex + er, eye_y + er],
+                             fill=fc)
+
+        # Augenbrauen nur bei starken Emotionen
+        brow_y = y - 0.14 * hr
+        bl = 0.13 * hr
+        if expression == "angry":
+            for ex in eye_xs:
+                draw.line([(ex - bl, brow_y - 0.07 * hr),
+                           (ex + bl, brow_y + 0.07 * hr)], fill=fc, width=stroke)
+        elif expression == "sad":
+            for ex in eye_xs:
+                draw.line([(ex - bl, brow_y + 0.06 * hr),
+                           (ex + bl, brow_y - 0.04 * hr)], fill=fc, width=stroke)
+        elif expression == "shocked":
+            for ex in eye_xs:
+                draw.line([(ex - bl, brow_y - 0.12 * hr),
+                           (ex + bl, brow_y - 0.12 * hr)], fill=fc, width=stroke)
+
+    # Mund vorne unten am Kopf (Charakter schaut nach rechts)
+    mx, my = x + 0.40 * hr, y + 0.52 * hr
+    if expression in ("smile", "neutral"):
+        r = 0.26 * hr if expression == "smile" else 0.18 * hr
+        draw.arc([mx - r, my - r * 1.4, mx + r, my + r * 0.6],
+                 30, 150, fill=fc, width=stroke)
+    elif expression == "grin":
+        r = 0.30 * hr
+        draw.pieslice([mx - r, my - r * 0.75, mx + r, my + r * 0.75],
+                      0, 180, fill=fc)
+    elif expression in ("flat", "angry"):
+        r = 0.20 * hr
+        draw.line([(mx - r, my), (mx + r, my)], fill=fc, width=stroke)
+    elif expression == "sad":
+        r = 0.22 * hr
+        draw.arc([mx - r, my - r * 0.4, mx + r, my + r * 1.6],
+                 210, 330, fill=fc, width=stroke)
+    elif expression == "shocked":
+        rx, ry = 0.16 * hr, 0.22 * hr
+        draw.ellipse([mx - rx, my - ry, mx + rx, my + ry], fill=fc)
+    elif expression == "sleepy":
+        r = 0.12 * hr
+        draw.line([(mx - r, my), (mx + r, my)], fill=fc, width=stroke)
 
 
 def _draw_accessory(
@@ -290,37 +438,50 @@ def _draw_accessory(
     spec: CharacterSpec,
     head_c: Point,
     head_r: float,
-    lw: int,
+    lw: float,
     accent: tuple[int, int, int],
+    *,
+    inflate: float = 0.0,
+    decorations: bool = True,
 ) -> None:
+    """`inflate` pumpt die Formen für den Kontur-Pass auf;
+    `decorations` schaltet innenliegende Details (Naht, Button) ab."""
     x, y = head_c
+    o = inflate
     if spec.accessory == "cap":
-        s = head_r * 1.12
+        s = head_r * 1.12 + o
         draw.pieslice([x - s, y - s, x + s, y + s], 190, 350, fill=accent)
-        brim_y = y - head_r * 0.42
-        draw.line(
-            [(x + head_r * 0.45, brim_y), (x + head_r * 1.7, brim_y - head_r * 0.1)],
-            fill=accent, width=max(2, round(lw * 0.9)),
+        # Schild als flaches Oval nach vorne
+        draw.ellipse(
+            [x + head_r * 0.30 - o, y - head_r * 0.62 - o,
+             x + head_r * 1.75 + o, y - head_r * 0.28 + o],
+            fill=accent,
         )
+        if decorations:
+            dark = _blend(spec.accent_color, "#000000", 0.25)
+            draw.arc([x - s * 0.55, y - s, x + s * 0.55, y + s * 0.2],
+                     220, 320, fill=dark, width=max(2, round(lw * 0.35)))
+            br = head_r * 0.12
+            draw.ellipse([x - br, y - s - br, x + br, y - s + br], fill=dark)
     elif spec.accessory == "beanie":
-        s = head_r * 1.12
+        s = head_r * 1.12 + o
         draw.pieslice([x - s, y - s, x + s, y + s], 185, 355, fill=accent)
-        pr = head_r * 0.22
+        pr = head_r * 0.22 + o
         draw.ellipse([x - pr, y - s - pr * 1.2, x + pr, y - s + pr * 0.8],
                      fill=accent)
     elif spec.accessory == "headphones":
         s = head_r * 1.25
-        draw.arc([x - s, y - s, x + s, y + s], 195, 345,
-                 fill=accent, width=max(2, round(lw * 0.8)))
-        pr = head_r * 0.28
+        draw.arc([x - s - o, y - s - o, x + s + o, y + s + o], 195, 345,
+                 fill=accent, width=max(2, round(lw * 0.8 + 2 * o)))
+        pr = head_r * 0.28 + o
         for px in (x - head_r * 1.05, x + head_r * 1.05):
             draw.ellipse([px - pr, y - pr * 1.6, px + pr, y + pr * 0.4],
                          fill=accent)
     elif spec.accessory == "antenna":
         top = (x + head_r * 0.15, y - head_r)
         tip = (x + head_r * 0.3, y - head_r * 1.75)
-        draw.line([top, tip], fill=accent, width=max(2, round(lw * 0.7)))
-        pr = head_r * 0.16
+        draw.line([top, tip], fill=accent, width=max(2, round(lw * 0.7 + 2 * o)))
+        pr = head_r * 0.16 + o
         draw.ellipse([tip[0] - pr, tip[1] - pr, tip[0] + pr, tip[1] + pr],
                      fill=accent)
 
@@ -406,20 +567,58 @@ def character_image(
     *,
     size: int = 1080,
     mirror: bool = False,
+    ss: int = 3,
 ) -> Image.Image:
     """Charakter allein auf transparentem Quadrat; `mirror` lässt ihn nach
-    links schauen. Posen mit `rot` (z.B. liegend) werden gedreht."""
-    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    links schauen. Posen mit `rot` (z.B. liegend) werden gedreht.
+
+    `ss` = Supersampling-Faktor: intern größer rendern und runterskalieren
+    für glatte Kanten (Pillow zeichnet sonst ohne Antialiasing)."""
+    big = size * max(1, ss)
+    img = Image.new("RGBA", (big, big), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
-    height = size * (0.62 if pose.rot else 0.8)
-    foot_y = size * 0.92
-    draw_character(draw, spec, pose, foot=(size / 2, foot_y), height=height)
+    height = big * (0.62 if pose.rot else 0.8)
+    foot_y = big * 0.92
+    draw_character(draw, spec, pose, foot=(big / 2, foot_y), height=height)
     if pose.rot:
-        center = (size / 2, foot_y - height * 0.5)
+        center = (big / 2, foot_y - height * 0.5)
         img = img.rotate(pose.rot, center=center, resample=Image.BICUBIC)
+    if big != size:
+        img = img.resize((size, size), Image.LANCZOS)
     if mirror:
         img = img.transpose(Image.FLIP_LEFT_RIGHT)
     return img
+
+
+def paste_character(
+    canvas: Image.Image,
+    spec: CharacterSpec,
+    pose: Pose,
+    *,
+    foot: Point,
+    height: float,
+    mirror: bool = False,
+    ss: int = 3,
+) -> None:
+    """Charakter mit Fußpunkt-Anker in eine Szene einfügen (mit Alphakanal)."""
+    size = int(round(height / (0.62 if pose.rot else 0.8)))
+    img = character_image(spec, pose, size=size, mirror=mirror, ss=ss)
+    canvas.paste(img, (int(foot[0] - size / 2), int(foot[1] - size * 0.92)), img)
+
+
+def _draw_shadow(
+    draw: ImageDraw.ImageDraw,
+    spec: CharacterSpec,
+    foot: Point,
+    height: float,
+) -> None:
+    """Weicher Bodenschatten unter dem Charakter."""
+    w, h = height * 0.30, height * 0.040
+    col = _blend(spec.bg_color, "#000000", 0.45)
+    draw.ellipse(
+        [foot[0] - w / 2, foot[1] - h / 2, foot[0] + w / 2, foot[1] + h / 2],
+        fill=col,
+    )
 
 
 def render_pose_image(
@@ -527,7 +726,9 @@ def render_thumbnail(
         title_size = width // 14
         wrap = 14
 
-    draw_character(draw, spec, POSES[pose], foot=foot, height=char_h)
+    _draw_shadow(draw, spec, foot, char_h)
+    paste_character(img, spec, POSES[pose], foot=foot, height=char_h)
+    draw = ImageDraw.Draw(img)
 
     font = _font(title_size)
     x0, y, x1 = text_area
@@ -642,10 +843,9 @@ def render_background_video(
             _draw_ground(draw, spec, width, ground_y)
             pose, x_frac = _pose_at(t)
             pose = _breathe(pose, t)
-            draw_character(
-                draw, spec, pose,
-                foot=(x_frac * width, ground_y), height=char_h,
-            )
+            char_foot = (x_frac * width, ground_y)
+            _draw_shadow(draw, spec, char_foot, char_h)
+            paste_character(frame, spec, pose, foot=char_foot, height=char_h, ss=2)
             if brand_tag:
                 _draw_brand_tag(draw, spec, width, height)
             proc.stdin.write(frame.tobytes())
@@ -659,11 +859,13 @@ def render_background_video(
 
 __all__ = [
     "ACCESSORIES",
+    "EXPRESSIONS",
     "POSES",
     "CharacterSpec",
     "Pose",
     "character_image",
     "draw_character",
+    "paste_character",
     "render_background_video",
     "render_library",
     "render_pose_image",
