@@ -33,6 +33,7 @@ class Config:
     music_dir: Path
     footage_dir: Path
     character_file: Path
+    library_dir: Path
 
     @classmethod
     def load(cls) -> "Config":
@@ -46,6 +47,9 @@ class Config:
 
         character_file = Path(
             os.environ.get("CHARACTER_FILE", "./assets/character.json")
+        ).resolve()
+        library_dir = Path(
+            os.environ.get("LIBRARY_DIR", "./assets/character_library")
         ).resolve()
 
         provider = os.environ.get("TTS_PROVIDER", "edge").strip().lower()
@@ -72,6 +76,7 @@ class Config:
             music_dir=music_dir,
             footage_dir=footage_dir,
             character_file=character_file,
+            library_dir=library_dir,
         )
 
     def require_anthropic(self) -> None:

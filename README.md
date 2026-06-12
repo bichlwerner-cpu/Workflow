@@ -11,20 +11,36 @@ Skript-Datei (du) → edge-tts (Stimme) → Whisper (Captions)
 
 ### Stick-Man Brand-Workflow (empfohlen für faceless Channel)
 
-Dein Charakter wird **einmal** in `assets/character.json` definiert (Farben, Accessoire, Name) und sieht danach in jedem Video und Bild identisch aus — das ist deine Brand. Kein Footage nötig, kein Copyright-Risiko.
+Dein Charakter wird **einmal** in `assets/character.json` definiert (Farben, Accessoire, Name) und sieht danach in jedem Bild identisch aus — das ist deine Brand. Kein Footage nötig, kein Copyright-Risiko.
+
+**Workflow für manuelles Layering im Editor** (CapCut, Premiere, DaVinci, …):
 
 ```bash
 # 1. Charakter anlegen (einmalig) -- rendert auch eine Posen-Vorschau
 yt-automation stickman init --name "Stixx" --accent-color "#FF7A59" --accessory cap
 
-# 2. Video rendern: animierter Charakter als Hintergrund
-yt-automation from-text mein_skript.txt --format shorts --stickman
+# 2. Posen-Bibliothek an festen Ort rendern (einmalig, oder nach Charakter-Änderung)
+#    -> assets/character_library/: 22 Posen x 2 Blickrichtungen, transparente PNGs
+yt-automation stickman library
 
-# 3. Passendes Thumbnail im selben Look
+# 3. Pro Video: Voiceover rein, alle Bilder raus
+#    Whisper hört das Audio ab, teilt es in Beats (~0.5s) und rendert pro Beat
+#    ein transparentes Posen-PNG -- Pose passend zum gesprochenen Text
+#    (z.B. "warum" -> think, "krass" -> shocked, "steigt" -> point_up).
+yt-automation stickman storyboard voiceover.mp3
+# -> out/storyboard_voiceover/0001__000.00-000.60__wave.png, ... (~120 Bilder/Minute)
+# -> storyboard.csv / storyboard.json mit Start/Ende/Text/Pose pro Bild
+
+# Bilddichte steuern: --beat 0.4 = mehr Bilder, --beat 1.0 = weniger
+yt-automation stickman storyboard voiceover.mp3 --beat 0.4
+
+# 4. Passendes Thumbnail im selben Look
 yt-automation stickman thumbnail "Warum dein Gehirn dich anlügt" --pose point
 ```
 
-Im Video läuft der Charakter rein und gestikuliert dann im Loop (idle, wave, point, think, celebrate, …) mit subtiler Dauerbewegung, auf Brand-Hintergrund mit Spot, Partikeln und Kanal-Tag.
+Die Dateinamen enthalten Nummer + Zeitfenster + Pose, die CSV alle Timings — einfach sortiert in den Editor ziehen und auf die Tonspur legen.
+
+**Optional, voll-automatisches Video:** `--stickman` bei `from-text`/`run` rendert stattdessen ein fertiges MP4 mit animiertem Charakter als Hintergrund (Walk-in, Gesten-Loop, Brand-Tag).
 
 ### Kostenloser Workflow mit Footage
 
@@ -88,6 +104,7 @@ cp .env.example .env              # ggf. anpassen
 | `MUSIC_DIR` | `./assets/music` | Hintergrundmusik (Auto-Pick) |
 | `FOOTAGE_DIR` | `./assets/footage` | Footage-Pool |
 | `CHARACTER_FILE` | `./assets/character.json` | Stick-Man-Charakter-Definition |
+| `LIBRARY_DIR` | `./assets/character_library` | Fester Ort der Posen-Bibliothek |
 | `ANTHROPIC_API_KEY` | – | Nur für `run`/`script` (Claude) |
 | `ELEVENLABS_API_KEY` | – | Nur wenn `TTS_PROVIDER=elevenlabs` |
 
@@ -99,8 +116,10 @@ yt-automation voices --language de
 
 # Stick-Man Brand-Charakter
 yt-automation stickman init --name "Stixx" --accessory cap   # einmalig
+yt-automation stickman library                                # alle Posen als PNGs -> LIBRARY_DIR
+yt-automation stickman storyboard voiceover.mp3 --beat 0.5    # Voiceover -> Bilder + Timings
 yt-automation stickman sheet                                  # alle Posen als Übersicht
-yt-automation stickman pose wave --transparent                # PNG, z.B. für Canva/Profilbild
+yt-automation stickman pose wave --transparent --mirror       # einzelnes PNG, nach links schauend
 yt-automation stickman thumbnail "Mein Titel" --pose point    # Thumbnail 1280x720
 yt-automation stickman video --duration 15                    # Hintergrund-Clip zum Testen
 
@@ -131,7 +150,8 @@ src/yt_automation/
 ├── audio_mix.py   # Voice + Musik mit Sidechain-Ducking
 ├── captions.py    # faster-whisper → ASS Word-Captions
 ├── footage.py     # yt-dlp + FFmpeg Clip + Background-Prep
-├── stickman.py    # Brand-Charakter: Posen, Thumbnails, animierte Backgrounds
+├── stickman.py    # Brand-Charakter: Posen, Library, Thumbnails, animierte Backgrounds
+├── storyboard.py  # Voiceover -> Beats -> nummerierte Posen-PNGs + Timing-Manifest
 ├── fonts.py       # Font-Lookup für Pillow
 ├── video.py       # Render-Pfade (Title-Card / Footage)
 └── pipeline.py    # End-to-End-Orchestrator

@@ -112,25 +112,7 @@ class Pose:
     r_hip: float = -6.0
     r_knee: float = 4.0
     lift: float = 0.0        # vertikaler Versatz (Sprung), relativ zur Höhe
-
-
-POSES: dict[str, Pose] = {
-    "idle": Pose(),
-    "wave": Pose(torso=2, head=-3, r_shoulder=150, r_elbow=35),
-    "point": Pose(torso=5, r_shoulder=95, r_elbow=-5, l_shoulder=18, l_elbow=12),
-    "present": Pose(torso=3, r_shoulder=60, r_elbow=35, l_shoulder=14),
-    "think": Pose(torso=-2, head=9, r_shoulder=55, r_elbow=125, l_shoulder=12),
-    "celebrate": Pose(
-        torso=-3, head=-6, lift=0.025,
-        l_shoulder=160, l_elbow=15, r_shoulder=205, r_elbow=-15,
-        l_hip=12, l_knee=-8, r_hip=-12, r_knee=8,
-    ),
-    "facepalm": Pose(torso=6, head=14, r_shoulder=70, r_elbow=132),
-    "shrug": Pose(
-        torso=-2, head=6,
-        l_shoulder=42, l_elbow=95, r_shoulder=-42, r_elbow=-95,
-    ),
-}
+    rot: float = 0.0         # Rotation der ganzen Figur (z.B. liegend)
 
 
 def walk_pose(phase: float) -> Pose:
@@ -150,6 +132,77 @@ def walk_pose(phase: float) -> Pose:
         r_elbow=-18,
         lift=0.012 * bob,
     )
+
+
+POSES: dict[str, Pose] = {
+    # Neutral / Gestik
+    "idle": Pose(),
+    "wave": Pose(torso=2, head=-3, r_shoulder=150, r_elbow=35),
+    "point": Pose(torso=5, r_shoulder=95, r_elbow=-5, l_shoulder=18, l_elbow=12),
+    "point_up": Pose(torso=2, head=-8, r_shoulder=165, r_elbow=5),
+    "point_down": Pose(torso=8, head=14, r_shoulder=35, r_elbow=-12),
+    "present": Pose(torso=3, r_shoulder=60, r_elbow=35, l_shoulder=14),
+    "explain": Pose(
+        torso=2, l_shoulder=45, l_elbow=42, r_shoulder=52, r_elbow=38,
+    ),
+    "think": Pose(torso=-2, head=9, r_shoulder=55, r_elbow=125, l_shoulder=12),
+    "shrug": Pose(
+        torso=-2, head=6,
+        l_shoulder=42, l_elbow=95, r_shoulder=-42, r_elbow=-95,
+    ),
+    # Emotionen
+    "happy": Pose(
+        torso=-6, head=-8, lift=0.01,
+        l_shoulder=-28, l_elbow=-15, r_shoulder=-34, r_elbow=-20,
+    ),
+    "celebrate": Pose(
+        torso=-3, head=-6, lift=0.025,
+        l_shoulder=160, l_elbow=15, r_shoulder=205, r_elbow=-15,
+        l_hip=12, l_knee=-8, r_hip=-12, r_knee=8,
+    ),
+    "sad": Pose(
+        torso=14, head=30,
+        l_shoulder=-4, l_elbow=-4, r_shoulder=-6, r_elbow=-4,
+        l_knee=-7, r_knee=7,
+    ),
+    "angry": Pose(
+        torso=10, head=-4,
+        l_shoulder=55, l_elbow=125, r_shoulder=70, r_elbow=120,
+    ),
+    "shocked": Pose(
+        torso=-10, head=-10,
+        l_shoulder=150, l_elbow=25, r_shoulder=215, r_elbow=-25,
+        l_hip=14, l_knee=-6, r_hip=-14, r_knee=6,
+    ),
+    "facepalm": Pose(torso=6, head=14, r_shoulder=70, r_elbow=132),
+    "dab": Pose(
+        torso=8, head=22,
+        l_shoulder=215, l_elbow=0, r_shoulder=150, r_elbow=-115,
+    ),
+    # Bewegung
+    "walk1": walk_pose(0.15),
+    "walk2": walk_pose(0.65),
+    "run": Pose(
+        torso=14, head=-4, lift=0.02,
+        l_shoulder=-35, l_elbow=-60, r_shoulder=40, r_elbow=-70,
+        l_hip=42, l_knee=-15, r_hip=-35, r_knee=-70,
+    ),
+    "jump": Pose(
+        torso=-4, head=-8, lift=0.06,
+        l_shoulder=140, l_elbow=20, r_shoulder=215, r_elbow=-20,
+        l_hip=45, l_knee=-90, r_hip=35, r_knee=-95,
+    ),
+    "sit": Pose(
+        torso=-2,
+        l_shoulder=30, l_elbow=28, r_shoulder=35, r_elbow=30,
+        l_hip=80, l_knee=-85, r_hip=85, r_knee=-88,
+    ),
+    "lie": Pose(
+        rot=90, head=-4,
+        l_shoulder=12, l_elbow=10, r_shoulder=-14, r_elbow=-10,
+        l_hip=10, l_knee=-8, r_hip=-8, r_knee=6,
+    ),
+}
 
 
 def _lerp_pose(a: Pose, b: Pose, t: float) -> Pose:
@@ -347,6 +400,28 @@ def _draw_brand_tag(
 # ============================================================
 
 
+def character_image(
+    spec: CharacterSpec,
+    pose: Pose,
+    *,
+    size: int = 1080,
+    mirror: bool = False,
+) -> Image.Image:
+    """Charakter allein auf transparentem Quadrat; `mirror` lässt ihn nach
+    links schauen. Posen mit `rot` (z.B. liegend) werden gedreht."""
+    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    height = size * (0.62 if pose.rot else 0.8)
+    foot_y = size * 0.92
+    draw_character(draw, spec, pose, foot=(size / 2, foot_y), height=height)
+    if pose.rot:
+        center = (size / 2, foot_y - height * 0.5)
+        img = img.rotate(pose.rot, center=center, resample=Image.BICUBIC)
+    if mirror:
+        img = img.transpose(Image.FLIP_LEFT_RIGHT)
+    return img
+
+
 def render_pose_image(
     spec: CharacterSpec,
     pose_name: str,
@@ -354,20 +429,49 @@ def render_pose_image(
     *,
     size: int = 1080,
     transparent: bool = False,
+    mirror: bool = False,
 ) -> Path:
     if pose_name not in POSES:
         raise ValueError(f"Unbekannte Pose '{pose_name}'. Verfügbar: {list(POSES)}")
-    mode = "RGBA" if transparent else "RGB"
-    bg = (0, 0, 0, 0) if transparent else _hex_rgb(spec.bg_color)
-    img = Image.new(mode, (size, size), bg)
-    draw = ImageDraw.Draw(img)
-    draw_character(
-        draw, spec, POSES[pose_name],
-        foot=(size / 2, size * 0.92), height=size * 0.8,
-    )
+    img = character_image(spec, POSES[pose_name], size=size, mirror=mirror)
+    if not transparent:
+        bg = Image.new("RGB", (size, size), _hex_rgb(spec.bg_color))
+        bg.paste(img, (0, 0), img)
+        img = bg
     out_path.parent.mkdir(parents=True, exist_ok=True)
     img.save(out_path, "PNG")
     return out_path
+
+
+def render_library(
+    spec: CharacterSpec, out_dir: Path, *, size: int = 1080
+) -> list[Path]:
+    """Alle Posen als transparente PNGs in einen festen Ordner rendern.
+
+    Pro Pose zwei Dateien: `<pose>.png` (schaut nach rechts) und
+    `<pose>_left.png` (gespiegelt). Dazu `_uebersicht.png` und ein
+    `library.json`-Manifest.
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+    paths: list[Path] = []
+    for name, pose in POSES.items():
+        for mirror, suffix in ((False, ""), (True, "_left")):
+            img = character_image(spec, pose, size=size, mirror=mirror)
+            path = out_dir / f"{name}{suffix}.png"
+            img.save(path, "PNG")
+            paths.append(path)
+
+    render_pose_sheet(spec, out_dir / "_uebersicht.png")
+    manifest = {
+        "character": asdict(spec),
+        "size": size,
+        "poses": list(POSES),
+        "files": [p.name for p in paths],
+    }
+    (out_dir / "library.json").write_text(
+        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    return paths
 
 
 def render_pose_sheet(
@@ -380,14 +484,13 @@ def render_pose_sheet(
     label_font = _font(cell // 14)
     grid_col = _blend(spec.bg_color, spec.line_color, 0.15)
 
+    sub_size = int(cell * 0.82)
     for i, name in enumerate(names):
         cx = (i % cols) * cell
         cy = (i // cols) * cell
         draw.rectangle([cx, cy, cx + cell, cy + cell], outline=grid_col, width=2)
-        draw_character(
-            draw, spec, POSES[name],
-            foot=(cx + cell / 2, cy + cell * 0.86), height=cell * 0.66,
-        )
+        sub = character_image(spec, POSES[name], size=sub_size)
+        img.paste(sub, (cx + (cell - sub_size) // 2, cy + cell - sub_size), sub)
         draw.text((cx + cell * 0.06, cy + cell * 0.05), name,
                   font=label_font, fill=_hex_rgb(spec.accent_color))
 
@@ -559,8 +662,10 @@ __all__ = [
     "POSES",
     "CharacterSpec",
     "Pose",
+    "character_image",
     "draw_character",
     "render_background_video",
+    "render_library",
     "render_pose_image",
     "render_pose_sheet",
     "render_thumbnail",

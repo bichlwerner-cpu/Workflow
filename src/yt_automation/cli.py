@@ -317,18 +317,91 @@ def stickman_pose(
     transparent: Annotated[
         bool, typer.Option("--transparent", help="Transparenter Hintergrund (für Canva etc.).")
     ] = False,
+    mirror: Annotated[
+        bool, typer.Option("--mirror", help="Gespiegelt (schaut nach links).")
+    ] = False,
     out: Annotated[Optional[Path], typer.Option()] = None,
 ) -> None:
     """Einzelne Pose als PNG rendern (Branding, Profilbild, Overlays)."""
     cfg = Config.load()
     spec = _load_spec(cfg)
     suffix = "_transparent" if transparent else ""
+    if mirror:
+        suffix += "_left"
     path = stickman_mod.render_pose_image(
         spec, pose,
         out or cfg.output_dir / f"pose_{pose}{suffix}.png",
-        size=size, transparent=transparent,
+        size=size, transparent=transparent, mirror=mirror,
     )
     console.print(f"[green]✓[/green] {path}")
+
+
+@stickman_app.command("library")
+def stickman_library(
+    size: Annotated[int, typer.Option(help="Kantenlänge der PNGs in Pixeln.")] = 1080,
+    out: Annotated[
+        Optional[Path],
+        typer.Option(help="Zielordner. Default: LIBRARY_DIR (./assets/character_library)."),
+    ] = None,
+) -> None:
+    """Komplette Posen-Bibliothek rendern: alle Posen als transparente PNGs,
+    jeweils nach rechts und links schauend, an einem festen Ort."""
+    cfg = Config.load()
+    spec = _load_spec(cfg)
+    target = out or cfg.library_dir
+    with console.status(f"Rendere {len(stickman_mod.POSES)} Posen x 2 Richtungen..."):
+        paths = stickman_mod.render_library(spec, target, size=size)
+    console.print(f"[green]✓[/green] {len(paths)} PNGs -> {target}")
+    console.print(f"[green]✓[/green] Übersicht -> {target / '_uebersicht.png'}")
+
+
+@stickman_app.command("storyboard")
+def stickman_storyboard(
+    audio: Annotated[Path, typer.Argument(help="Voiceover-Audiodatei (mp3/wav/...).")],
+    beat: Annotated[
+        float, typer.Option(help="Ziel-Dauer pro Bild in Sekunden. 0.5 ≈ 120 Bilder/Minute."),
+    ] = 0.5,
+    language: Annotated[str, typer.Option(help="Sprachcode für Whisper.")] = "de",
+    size: Annotated[int, typer.Option(help="Kantenlänge der PNGs in Pixeln.")] = 1080,
+    out: Annotated[
+        Optional[Path],
+        typer.Option(help="Zielordner. Default: OUTPUT_DIR/storyboard_<audioname>/."),
+    ] = None,
+) -> None:
+    """Voiceover anhören und alle Bilder fürs Video generieren:
+    pro Beat ein transparentes Posen-PNG + storyboard.csv/json mit Timings."""
+    from .captions import transcribe
+    from .storyboard import render_storyboard
+
+    cfg = Config.load()
+    spec = _load_spec(cfg)
+    target = out or cfg.output_dir / f"storyboard_{audio.stem}"
+
+    with console.status(f"Whisper ({cfg.whisper_model}) transkribiert {audio.name}..."):
+        words = transcribe(cfg, audio, language=language)
+    if not words:
+        console.print("[red]Whisper hat keine Wörter erkannt -- ist das die richtige Datei?[/red]")
+        raise typer.Exit(1)
+    console.print(f"[green]✓[/green] {len(words)} Wörter erkannt")
+
+    with console.status("Rendere Storyboard-Bilder..."):
+        beats, paths = render_storyboard(
+            spec, words, target, beat_seconds=beat, size=size,
+        )
+
+    table = Table(title=f"Storyboard ({len(beats)} Bilder)")
+    table.add_column("nr", justify="right")
+    table.add_column("zeit")
+    table.add_column("pose")
+    table.add_column("text")
+    preview = beats[:8]
+    for b in preview:
+        table.add_row(f"{b.index:04d}", f"{b.start:6.2f}-{b.end:6.2f}", b.pose, b.text)
+    if len(beats) > len(preview):
+        table.add_row("...", "...", "...", f"+ {len(beats) - len(preview)} weitere")
+    console.print(table)
+    console.print(f"[green]✓[/green] {len(paths)} PNGs -> {target}")
+    console.print(f"[green]✓[/green] Timings   -> {target / 'storyboard.csv'}")
 
 
 @stickman_app.command("thumbnail")
