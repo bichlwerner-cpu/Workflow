@@ -251,7 +251,8 @@ THE PREVIOUS SECTION ENDED WITH:
 
 Continue seamlessly from that ending (no recap, no greeting). Write 3-6 scenes, about {budget} spoken \
 words total. Cover all beats with concrete examples, include at least one pattern interrupt, and end \
-exactly on the open loop."""
+exactly on the open loop. Do NOT include a subscribe/like CTA or a "next time/next video" tease — \
+those belong exclusively in the outro, never in a chapter."""
         scenes = self._parse(prompt, ScenesPayload).scenes
         return Chapter(title=plan.title, scenes=scenes)
 
@@ -265,7 +266,8 @@ THE FINAL CHAPTER ENDED WITH:
 
 Write the OUTRO: 1-2 scenes, about {budget} spoken words. One satisfying closing beat that lands the \
 video's big idea, one open loop teasing a related psychology topic for next week's video, and exactly \
-one subscribe CTA woven in naturally (no begging)."""
+one subscribe CTA woven in naturally (no begging). Do not repeat any tease or CTA wording that already \
+appeared in the final chapter ending shown above."""
         return self._parse(prompt, ScenesPayload).scenes
 
     # ------------------------------------------------------------------- main
