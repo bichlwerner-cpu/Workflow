@@ -47,6 +47,7 @@ class VoiceConfig:
     similarity_boost: float = 0.80
     style: float = 0.30
     use_speaker_boost: bool = True
+    speed: float = 1.0  # 0.7-1.2; ~1.07 keeps long-form videos feeling brisk
 
 
 @dataclass
@@ -56,6 +57,7 @@ class CharacterConfig:
     persona: str
     color: str = "#1B1B1F"
     accessory: str = "none"  # none | glasses | hat | bowtie | mustache
+    hair: str = "none"       # none | spiky | bob | curly
     voice: VoiceConfig = field(default_factory=lambda: VoiceConfig(voice_id=""))
 
 
@@ -63,6 +65,7 @@ class CharacterConfig:
 class Settings:
     raw: Dict[str, Any]
     characters: Dict[str, CharacterConfig]
+    narrator: VoiceConfig = field(default_factory=lambda: VoiceConfig(voice_id=""))
 
     # --- convenience accessors -------------------------------------------------
     def __getitem__(self, key: str) -> Any:
@@ -146,28 +149,34 @@ def load_settings(
     if not characters_path.exists():
         raise FileNotFoundError(f"Character registry missing: {characters_path}")
     chars_raw = yaml.safe_load(characters_path.read_text(encoding="utf-8")) or {}
+
+    def parse_voice(voice_raw: Dict[str, Any]) -> VoiceConfig:
+        return VoiceConfig(
+            voice_id=str(voice_raw.get("voice_id", "")),
+            model_id=voice_raw.get("model_id", "eleven_multilingual_v2"),
+            stability=float(voice_raw.get("stability", 0.55)),
+            similarity_boost=float(voice_raw.get("similarity_boost", 0.80)),
+            style=float(voice_raw.get("style", 0.30)),
+            use_speaker_boost=bool(voice_raw.get("use_speaker_boost", True)),
+            speed=float(voice_raw.get("speed", 1.0)),
+        )
+
     characters: Dict[str, CharacterConfig] = {}
     for key, c in (chars_raw.get("characters") or {}).items():
-        voice_raw = c.get("voice") or {}
         characters[key] = CharacterConfig(
             key=key,
             display_name=c.get("display_name", key.title()),
             persona=str(c.get("persona", "")).strip(),
             color=c.get("color", "#1B1B1F"),
             accessory=c.get("accessory", "none") or "none",
-            voice=VoiceConfig(
-                voice_id=str(voice_raw.get("voice_id", "")),
-                model_id=voice_raw.get("model_id", "eleven_multilingual_v2"),
-                stability=float(voice_raw.get("stability", 0.55)),
-                similarity_boost=float(voice_raw.get("similarity_boost", 0.80)),
-                style=float(voice_raw.get("style", 0.30)),
-                use_speaker_boost=bool(voice_raw.get("use_speaker_boost", True)),
-            ),
+            hair=c.get("hair", "none") or "none",
+            voice=parse_voice(c.get("voice") or {}),
         )
     if not characters:
         raise ValueError("config/characters.yaml defines no characters.")
 
-    return Settings(raw=raw, characters=characters)
+    narrator = parse_voice((chars_raw.get("narrator") or {}).get("voice") or {})
+    return Settings(raw=raw, characters=characters, narrator=narrator)
 
 
 def slugify(text: str, max_len: int = 60) -> str:

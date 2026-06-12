@@ -56,7 +56,8 @@ def render_thumbnail(settings: Settings, script: Script, out_path: Path) -> Path
         color=(248, 246, 240), bg_fill=deep,
         pose=POSE_LIBRARY[pose_name],
         emotion=spec.expression, mouth_open=spec.expression in ("shocked", "excited"),
-        blink=False, facing=-1, accessory=main_char.accessory, accent=accent,
+        blink=False, facing=-1, accessory=main_char.accessory,
+        hair=main_char.hair, accent=accent,
     )
 
     # Headline text, auto-sized, last word in accent color.

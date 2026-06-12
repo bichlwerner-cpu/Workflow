@@ -21,6 +21,12 @@ PoseName = Literal[
 Background = Literal[
     "void", "paper", "chalkboard", "gradient_warm",
     "gradient_cool", "graph", "stage", "night",
+    "mountain", "path_split", "wall", "pit",
+]
+
+Action = Literal[
+    "none", "enter_left", "enter_right", "exit_left", "exit_right",
+    "walk_across", "approach", "retreat", "jump", "collapse",
 ]
 
 Prop = Literal[
@@ -36,3 +42,4 @@ POSES = list(get_args(PoseName))
 BACKGROUNDS = list(get_args(Background))
 PROPS = list(get_args(Prop))
 CAMERAS = list(get_args(Camera))
+ACTIONS = list(get_args(Action))

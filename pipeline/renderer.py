@@ -14,7 +14,8 @@ from typing import Dict, Iterator, List, Optional, Tuple
 from PIL import Image, ImageDraw
 
 from .config import Settings
-from .stickman import animate_pose, draw_character, is_blinking
+from .stickman import (COLLAPSED, animate_pose, draw_character, is_blinking,
+                       lerp_pose)
 from .timeline import TimedLine, TimedScene, Timeline
 from .utils import RGB, hex_to_rgb, load_font, luminance, mix, text_size, wrap_text
 
@@ -134,6 +135,50 @@ class FrameRenderer:
             for y in range(step, ch, step):
                 for x in range(step, cw, step):
                     d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=dot)
+        elif preset in ("mountain", "path_split", "wall", "pit"):
+            base = (250, 247, 240)
+            img = Image.new("RGB", (cw, ch), base)
+            d = ImageDraw.Draw(img)
+            ink = mix(base, INK_DARK, 0.75)
+            soft = mix(base, INK_DARK, 0.22)
+            gy = ch * 0.84
+            lw = max(4, ch // 220)
+            if preset == "mountain":
+                d.polygon([(cw * 0.52, gy), (cw * 0.78, ch * 0.16), (cw * 1.02, gy)],
+                          fill=mix(base, INK_DARK, 0.10), outline=ink, width=lw)
+                d.line([(cw * 0.78, ch * 0.16), (cw * 0.78, ch * 0.09)], fill=ink, width=lw)
+                d.polygon([(cw * 0.78, ch * 0.09), (cw * 0.84, ch * 0.115), (cw * 0.78, ch * 0.14)],
+                          fill=self.accent)
+                d.line([(0, gy), (cw, gy)], fill=ink, width=lw)
+            elif preset == "path_split":
+                for tx in (cw * 0.13, cw * 0.87):
+                    d.line([(cw * 0.5, ch * 0.92), (tx, ch * 0.50)], fill=soft, width=int(ch * 0.045))
+                post_x, post_y = cw * 0.5, ch * 0.50
+                d.line([(post_x, post_y), (post_x, post_y - ch * 0.16)], fill=ink, width=lw * 2)
+                for k, side in enumerate((-1, 1)):
+                    by = post_y - ch * (0.15 - 0.055 * k)
+                    d.polygon([(post_x, by - ch * 0.022), (post_x, by + ch * 0.022),
+                               (post_x + side * cw * 0.085, by + ch * 0.022),
+                               (post_x + side * cw * 0.105, by),
+                               (post_x + side * cw * 0.085, by - ch * 0.022)], fill=self.accent)
+                d.line([(0, gy), (cw, gy)], fill=ink, width=lw)
+            elif preset == "wall":
+                x0, x1 = cw * 0.455, cw * 0.545
+                top = ch * 0.30
+                d.rectangle([x0, top, x1, gy], fill=mix(base, INK_DARK, 0.16), outline=ink, width=lw)
+                rows = 9
+                for r in range(1, rows):
+                    y = top + (gy - top) * r / rows
+                    d.line([(x0, y), (x1, y)], fill=ink, width=max(2, lw // 2))
+                    xm = (x0 + x1) / 2 if r % 2 else x0 + (x1 - x0) * 0.25
+                    d.line([(xm, y), (xm, y + (gy - top) / rows)], fill=ink, width=max(2, lw // 2))
+                d.line([(0, gy), (cw, gy)], fill=ink, width=lw)
+            else:  # pit
+                d.line([(0, gy), (cw * 0.40, gy)], fill=ink, width=lw)
+                d.line([(cw * 0.60, gy), (cw, gy)], fill=ink, width=lw)
+                d.polygon([(cw * 0.40, gy), (cw * 0.45, ch * 0.99),
+                           (cw * 0.55, ch * 0.99), (cw * 0.60, gy)],
+                          fill=mix(base, (0, 0, 0), 0.82))
         else:  # "void" and any fallback
             base = (250, 247, 240)
             img = Image.new("RGB", (cw, ch), base)
@@ -143,51 +188,120 @@ class FrameRenderer:
         self._bg_cache[preset] = (img, base, is_dark)
         return self._bg_cache[preset]
 
-    # ------------------------------------------------------------ characters
-    def _layout(self, scene: TimedScene) -> List[Tuple[str, float, int]]:
-        """[(character_key, x_fraction, facing)] for a scene."""
-        chars = scene.characters[:3]
-        if len(chars) == 1:
-            spots = [(0.5, 1)]
-        elif len(chars) == 2:
-            spots = [(0.32, 1), (0.68, -1)]
-        else:
-            spots = [(0.18, 1), (0.5, 1), (0.82, -1)]
-        return [(c, x, f) for c, (x, f) in zip(chars, spots)]
-
+    # --------------------------------------------------------------- staging
     def _ink_for(self, color: RGB, base: RGB) -> RGB:
         """Guarantee stroke/background contrast on any background preset."""
         if abs(luminance(color) - luminance(base)) < 0.25:
             return INK_LIGHT if luminance(base) < 0.45 else INK_DARK
         return color
 
-    def _draw_characters(self, draw: ImageDraw.ImageDraw, scene: TimedScene,
-                         t: float, base: RGB, active: Optional[TimedLine]) -> None:
+    @staticmethod
+    def _smooth(u: float) -> float:
+        u = max(0.0, min(1.0, u))
+        return u * u * (3 - 2 * u)
+
+    def _actor_kinematics(self, action: str, slot: float, t_in: float, dur: float,
+                          base_facing: int) -> Tuple[float, bool, int, float, float, bool]:
+        """Position/motion of one actor: (x_frac, moving, facing, jump_y, collapse_u, visible)."""
+        enter_t = min(0.9, dur * 0.45)
+        x, moving, facing, visible = slot, False, base_facing, True
+
+        if action == "enter_left" and t_in < enter_t:
+            u = self._smooth(t_in / enter_t)
+            x, moving, facing = -0.12 + (slot + 0.12) * u, True, 1
+        elif action == "enter_right" and t_in < enter_t:
+            u = self._smooth(t_in / enter_t)
+            x, moving, facing = 1.12 - (1.12 - slot) * u, True, -1
+        elif action in ("exit_left", "exit_right"):
+            t0 = dur - enter_t
+            if t_in > t0:
+                u = self._smooth((t_in - t0) / enter_t)
+                if action == "exit_left":
+                    x, facing = slot - (slot + 0.12) * u, -1
+                else:
+                    x, facing = slot + (1.12 - slot) * u, 1
+                moving = True
+                visible = -0.11 < x < 1.11
+        elif action == "walk_across":
+            u = self._smooth(t_in / dur)
+            x, moving, facing = 0.14 + 0.72 * u, u < 0.995, 1
+        elif action == "approach":
+            toward = 1 if slot <= 0.5 else -1
+            start = slot - toward * 0.20
+            mt = min(1.0, dur * 0.5)
+            if t_in < mt:
+                u = self._smooth(t_in / mt)
+                x, moving = start + (slot - start) * u, True
+        elif action == "retreat":
+            away = -1 if slot <= 0.5 else 1
+            target = slot + away * 0.15
+            mt = min(1.0, dur * 0.5)
+            u = self._smooth(t_in / mt) if t_in < mt else 1.0
+            x, moving = slot + (target - slot) * u, t_in < mt
+
+        jump_y = 0.0
+        if action == "jump":
+            jt = min(0.7, dur)
+            if t_in < jt:
+                jump_y = 0.16 * math.sin(math.pi * t_in / jt)
+
+        collapse_u = self._smooth(t_in / 0.8) if action == "collapse" else 0.0
+        return x, moving, facing, jump_y, collapse_u, visible
+
+    def _draw_staging(self, draw: ImageDraw.ImageDraw, t: float, base: RGB,
+                      is_dark: bool, tl: TimedLine) -> None:
+        """Render the current beat: 0-2 silent actors performing + their prop."""
+        actors = tl.voiced.actors[:2]
+        ink = INK_LIGHT if is_dark else INK_DARK
+        t_line = max(0.0, t - tl.start)
+
+        if not actors:
+            if tl.voiced.prop != "none":  # diagram shot: big centered prop
+                self._draw_prop(draw, tl.voiced.prop, (self.cw * 0.5, self.ch * 0.44),
+                                self.ch * 0.20, ink, t_line)
+            return
+
+        dur = max(0.3, tl.end - tl.start)
+        t_in = min(t_line, dur)
         ground_y = self.ch * 0.84
-        scale = self.ch * (0.40 if len(scene.characters) <= 2 else 0.36)
-        speaker = active.voiced.character if active else None
+        scale = self.ch * (0.42 if len(actors) == 1 else 0.38)
+        if len(actors) == 1:
+            # Keep a lone actor clear of center-stage background elements.
+            slots = [{"wall": 0.30, "pit": 0.30, "path_split": 0.36,
+                      "mountain": 0.32}.get(self.timeline.scene_at(t).background, 0.5)]
+        else:
+            slots = [0.33, 0.67]
+        prop_anchor: Optional[Tuple[float, float]] = None
 
-        for key, xf, facing in self._layout(scene):
-            cfg = self.settings.characters[key]
-            phase = self._char_phase.get(key, 0.0)
-            speaking = key == speaker
-            if speaking and active is not None:
-                pose_name, emotion = active.voiced.pose, active.voiced.emotion
-                mouth_open = active.mouth_open(t)
-            else:
-                pose_name, emotion, mouth_open = "idle", "neutral", False
-
-            pose = animate_pose(pose_name, t, phase, speaking)
-            color = self._ink_for(hex_to_rgb(cfg.color), base)
-            if speaker is not None and not speaking:
-                color = mix(color, base, 0.45)  # fade listeners, focus the speaker
+        for i, a in enumerate(actors):
+            cfg = self.settings.characters.get(a.get("character", ""))
+            if cfg is None:
+                continue
+            base_facing = 1 if i == 0 else -1
+            x, moving, facing, jump_y, collapse_u, visible = self._actor_kinematics(
+                a.get("action", "none"), slots[i], t_in, dur, base_facing)
+            if not visible:
+                continue
+            phase = self._char_phase.get(cfg.key, 0.0)
+            pose_name = "walking" if moving else a.get("pose", "idle")
+            pose = animate_pose(pose_name, t, phase, speaking=False)
+            pose.y_offset += jump_y
+            if collapse_u > 0:
+                pose = lerp_pose(pose, COLLAPSED, collapse_u)
 
             draw_character(
-                draw, (self.cw * xf, ground_y), scale,
-                color=color, bg_fill=base, pose=pose, emotion=emotion,
-                mouth_open=mouth_open, blink=is_blinking(t, phase),
-                facing=facing, accessory=cfg.accessory, accent=self.accent,
+                draw, (self.cw * x, ground_y), scale,
+                color=self._ink_for(hex_to_rgb(cfg.color), base), bg_fill=base,
+                pose=pose, emotion=a.get("emotion", "neutral"), mouth_open=False,
+                blink=is_blinking(t, phase), facing=facing,
+                accessory=cfg.accessory, hair=cfg.hair, accent=self.accent,
             )
+            if i == 0:
+                prop_anchor = (self.cw * x + facing * scale * 0.55,
+                               ground_y - scale * 1.20)
+
+        if tl.voiced.prop != "none" and prop_anchor is not None:
+            self._draw_prop(draw, tl.voiced.prop, prop_anchor, scale * 0.30, ink, t_line)
 
     # ----------------------------------------------------------------- props
     def _draw_prop(self, draw: ImageDraw.ImageDraw, name: str, center, size: float,
@@ -310,8 +424,12 @@ class FrameRenderer:
     # ---------------------------------------------------------------- camera
     def _camera(self, t: float, scene: TimedScene, active: Optional[TimedLine]) -> Tuple[float, float, float]:
         dur = max(1.0, scene.end - scene.start)
-        zoom = 1.0 + 0.05 * min(1.0, max(0.0, (t - scene.start) / dur))
-        dx = dy = 0.0
+        progress = min(1.0, max(0.0, (t - scene.start) / dur))
+        zoom = 1.0 + 0.06 * progress
+        # Slow horizontal drift, alternating direction per scene, for constant
+        # subtle motion even in still beats.
+        dx = (1 if scene.scene_index % 2 else -1) * 0.012 * self.cw * progress
+        dy = 0.0
         if active is not None:
             since = t - active.start
             if active.voiced.camera == "zoom_in":
@@ -329,21 +447,17 @@ class FrameRenderer:
         img = bg.copy()
         draw = ImageDraw.Draw(img)
 
-        active = scene.active_line(t)
-        self._draw_characters(draw, scene, t, base, active)
-
-        # Floating prop next to the speaker's head.
-        if active is not None and active.voiced.prop != "none":
-            for key, xf, facing in self._layout(scene):
-                if key == active.voiced.character:
-                    scale = self.ch * (0.40 if len(scene.characters) <= 2 else 0.36)
-                    head_y = self.ch * 0.84 - scale * 1.02
-                    self._draw_prop(
-                        draw, active.voiced.prop,
-                        (self.cw * xf + facing * scale * 0.55, head_y - scale * 0.18),
-                        scale * 0.30, INK_LIGHT if is_dark else INK_DARK,
-                        t - active.start)
+        # Current beat — or hold the most recent beat's staging during gaps.
+        tl = scene.active_line(t)
+        if tl is None:
+            for cand in scene.lines:
+                if cand.start <= t:
+                    tl = cand
+                else:
                     break
+            tl = tl or scene.lines[0]
+        self._draw_staging(draw, t, base, is_dark, tl)
+        active = tl
 
         if scene.caption:
             self._draw_caption(img, scene.caption, is_dark)

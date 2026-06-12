@@ -21,7 +21,7 @@ from pydantic import BaseModel, ValidationError
 
 from .config import Settings, require_env
 from .models import Chapter, Outline, Scene, ScenesPayload, Script
-from .vocab import BACKGROUNDS, EMOTIONS, POSES, PROPS
+from .vocab import ACTIONS, BACKGROUNDS, EMOTIONS, POSES, PROPS
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -39,41 +39,51 @@ def _cast_block(settings: Settings) -> str:
 
 def build_system_prompt(settings: Settings) -> str:
     lang = LANG_NAMES.get(settings.get("language", default="en"), "English")
-    return f"""You are the head writer of a YouTube channel that makes long-form psychology explainers, \
-performed by animated stickman characters. Your scripts routinely hit millions of views because they are \
-genuinely fascinating AND ruthlessly optimized for watch time.
+    return f"""You are the head writer AND visual director of a YouTube channel that makes long-form \
+psychology explainers. ONE narrator speaks the entire voiceover; silent animated stickman characters \
+act out every beat on screen like a film. Your videos hit millions of views because the writing is \
+genuinely fascinating AND the screen never stops moving.
 
-LANGUAGE: write all spoken dialogue, titles and captions in {lang}.
+LANGUAGE: write all narration, titles and captions in {lang}.
 
-CAST (use ONLY these character keys, never invent new ones):
+FORMAT: every "line" is one NARRATION BEAT = the narrator's text (8-22 words) PLUS stage directions \
+("actors"): which characters are on screen, their pose, emotion and movement action. The narrator is \
+never visible. Characters never speak — they perform what the narration describes.
+
+CAST of silent actors (use ONLY these character keys):
 {_cast_block(settings)}
 
-RENDERER VOCABULARY (every line must use values from these lists):
-- emotions: {", ".join(EMOTIONS)}
+RENDERER VOCABULARY (every value must come from these lists):
 - poses: {", ".join(POSES)}
+- emotions: {", ".join(EMOTIONS)}
+- actions (movement): {", ".join(ACTIONS)}
 - backgrounds: {", ".join(BACKGROUNDS)}
 - props: {", ".join(PROPS)}
 
-RETENTION PLAYBOOK (non-negotiable):
-1. COLD OPEN: the first line must hit a curiosity gap within 15 spoken words. Tease the single most \
-surprising payoff of the video without resolving it. No greetings, no "in this video".
-2. OPEN LOOPS: every chapter ends on an unresolved question or tease for the next chapter. Resolve old \
-loops only while opening new ones.
-3. PATTERN INTERRUPTS: change something noticeable every 30-45 seconds of speech — new scene/background, \
-a prop, an emotion spike (shocked/mind_blown), a character switch, or a camera beat (shake/zoom_in).
-4. CONCRETE > ABSTRACT: every mechanism gets a vivid mini-story, named example or number. Use second \
-person ("you") constantly — the viewer must feel personally diagnosed.
-5. RE-HOOKS: roughly every 90 seconds, remind the viewer what's still coming ("and that's not even the \
-strange part...").
-6. PAYOFFS: deliver real "aha" moments. A curiosity gap that ends in a banality kills the channel.
-7. OUTRO: short. One satisfying summary beat, one open loop bridging to the next video, exactly one CTA.
+VISUAL DIRECTING RULES (this is what makes the video feel expensive):
+1. The staging MUST change with every beat: different pose, action, prop, actor set or camera. Two \
+identical consecutive beats are forbidden.
+2. Change the BACKGROUND every 1-2 beats (one scene = one location/setup). Use the metaphor sets \
+actively: mountain = goals/effort, path_split = decisions, wall = obstacles, pit = failure/low point, \
+graph = data/results, stage = spotlight/judgement, night = fear/rumination, chalkboard = explanation.
+3. Use movement actions constantly: characters enter, walk across, approach each other, jump on wins, \
+collapse on defeats, exit when dismissed. A beat where someone just stands is the exception.
+4. ACT OUT the narration literally. "Your brain hits the brakes" -> actor collapses. "You finally try" \
+-> actor enters and climbs toward the mountain flag. "Everyone judges you" -> two actors, one on stage, \
+one pointing. Make the screen tell the same story as the voice.
+5. 0 actors + a prop = a clean diagram shot (big icon) — use for numbers/concepts, max once per scene.
+6. captions: max 6 words, for key terms, numbers, study names. Use about every 3rd scene.
+7. camera: "shake" on shock beats, "zoom_in" on key reveals — at least one per scene.
 
-DIALOGUE CRAFT:
-- Lines are 6-30 words, spoken-word rhythm, contractions, no lecture tone.
-- Characters have distinct voices: sticky is the curious everyman, prof brings evidence and reveals, \
-doubt attacks weak claims (use doubt to pre-empt viewer objections).
-- 2-6 lines per scene; 1-3 characters per scene. Vary speaker patterns.
-- captions: max 6 words, only for key terms, numbers or study names.
+RETENTION PLAYBOOK (non-negotiable):
+1. COLD OPEN: hit a curiosity gap within the first 12 words. Tease the most surprising payoff without \
+resolving it. No greetings, no "in this video".
+2. OPEN LOOPS: every chapter ends on an unresolved question pulling into the next chapter.
+3. PACE: short punchy sentences. Cut every filler word. A beat never exceeds 22 words. No throat-clearing.
+4. CONCRETE > ABSTRACT: every mechanism gets a vivid mini-story or number. Constant second person \
+("you") — the viewer must feel personally diagnosed.
+5. RE-HOOKS: roughly every 90 seconds, remind the viewer what's still coming.
+6. PAYOFFS: deliver real "aha" moments. A curiosity gap that ends in a banality kills the channel.
 
 SCIENTIFIC INTEGRITY (also non-negotiable):
 - Real psychology only. Name a study/researcher ONLY if it is real and well-established \
@@ -143,7 +153,6 @@ class ScriptWriter:
             f"that validates against this JSON schema:\n"
             f"{json.dumps(schema.model_json_schema())}"
         )
-        url = f"{GEMINI_API}/{self.model}:generateContent"
         headers = {"x-goog-api-key": self.api_key}
 
         last_err = "unknown error"
@@ -156,12 +165,25 @@ class ScriptWriter:
                     "maxOutputTokens": self.max_tokens,
                 },
             }
+            url = f"{GEMINI_API}/{self.model}:generateContent"
             resp = requests.post(url, headers=headers, json=body, timeout=600)
             if resp.status_code in (429, 500, 502, 503):
+                # Free-tier Pro quotas are small; fall back to Flash rather
+                # than stalling the whole production.
+                if resp.status_code == 429 and "pro" in self.model and attempt >= 1:
+                    print(f"    [script] {self.model} rate-limited repeatedly; "
+                          f"falling back to gemini-2.5-flash")
+                    self.model = "gemini-2.5-flash"
+                    continue
                 wait = [10, 20, 40, 70, 70][attempt]
                 print(f"    [script] Gemini busy/rate-limited ({resp.status_code}); "
-                      f"waiting {wait}s (free tier allows ~10 requests/min) ...")
+                      f"waiting {wait}s (free tier allows only a few requests/min) ...")
                 time.sleep(wait)
+                continue
+            if resp.status_code in (403, 404) and self.model != "gemini-2.5-flash":
+                print(f"    [script] {self.model} unavailable on this key "
+                      f"({resp.status_code}); falling back to gemini-2.5-flash")
+                self.model = "gemini-2.5-flash"
                 continue
             if resp.status_code >= 400:
                 raise SystemExit(f"Gemini API error {resp.status_code}: {resp.text[:500]}")
@@ -194,7 +216,7 @@ class ScriptWriter:
         lines = [l for s in scenes for l in s.lines][-n_lines:]
         if not lines:
             return "(none)"
-        return "\n".join(f"{l.character}: {l.text}" for l in lines)
+        return "\n".join(f"NARRATOR: {l.text}" for l in lines)
 
     # ----------------------------------------------------------------- stages
     def outline(self, topic: str) -> Outline:
@@ -228,9 +250,10 @@ WORKING TITLE: {outline.working_title}
 ANGLE: {outline.angle}
 CHAPTER PLAN: {"; ".join(c.title for c in outline.chapters)}
 
-Write the COLD OPEN (hook): 2-4 scenes, about {budget} spoken words total. It must open the video's core \
-curiosity gap in the first line, tease the most surprising payoff from the later chapters, and end on a \
-hard open loop that makes skipping feel impossible. High emotional energy (shocked / mind_blown beats)."""
+Write the COLD OPEN (hook): 3-4 scenes, about {budget} spoken words total. It must open the video's core \
+curiosity gap in the first beat, tease the most surprising payoff from the later chapters, and end on a \
+hard open loop that makes skipping feel impossible. High visual energy: shocked/mind_blown beats, camera \
+shake, fast staging changes in every beat."""
         return self._parse(prompt, ScenesPayload).scenes
 
     def chapter(self, topic: str, outline: Outline, index: int, previous: List[Scene]) -> Chapter:
@@ -249,10 +272,11 @@ OPEN LOOP TO END ON (leads into "{nxt}"): {plan.open_loop}
 THE PREVIOUS SECTION ENDED WITH:
 {self._tail_of(previous)}
 
-Continue seamlessly from that ending (no recap, no greeting). Write 3-6 scenes, about {budget} spoken \
-words total. Cover all beats with concrete examples, include at least one pattern interrupt, and end \
-exactly on the open loop. Do NOT include a subscribe/like CTA or a "next time/next video" tease — \
-those belong exclusively in the outro, never in a chapter."""
+Continue seamlessly from that ending (no recap, no greeting). Write 4-7 short scenes, about {budget} \
+spoken words total. Cover all content beats with concrete acted-out examples, change the background \
+every 1-2 narration beats, keep the actors moving, and end exactly on the open loop. Do NOT include a \
+subscribe/like CTA or a "next time/next video" tease — those belong exclusively in the outro, never in \
+a chapter."""
         scenes = self._parse(prompt, ScenesPayload).scenes
         return Chapter(title=plan.title, scenes=scenes)
 
@@ -307,12 +331,13 @@ appeared in the final chapter ending shown above."""
 
 
 def _sanitize_characters(script: Script, valid: set) -> None:
-    """Map any unknown character key (shouldn't happen, but belt & braces) to the first cast member."""
+    """Map any unknown actor key (shouldn't happen, but belt & braces) to the first cast member."""
     fallback = sorted(valid)[0]
     for scene in script.all_scenes():
         for line in scene.lines:
-            if line.character not in valid:
-                line.character = fallback
+            for actor in line.actors:
+                if actor.character not in valid:
+                    actor.character = fallback
 
 
 def write_script(settings: Settings, topic: str, log=print) -> Script:

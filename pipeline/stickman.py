@@ -44,7 +44,7 @@ POSE_LIBRARY = {
     "thinking":     Pose(head_tilt=7, front_arm=(35, 125), back_arm=(-8, -4)),
     "shocked":      Pose(torso=-6, head_tilt=-4, front_arm=(115, 35),
                          back_arm=(-115, -35), front_leg=(14, 2), back_leg=(-14, -2)),
-    "happy":        Pose(front_arm=(150, 15), back_arm=(-150, -15), head_tilt=-2),
+    "happy":        Pose(front_arm=(132, 18), back_arm=(-132, -18), head_tilt=-2),
     "sad":          Pose(torso=7, head_tilt=16, front_arm=(4, 2), back_arm=(-4, -2)),
     "facepalm":     Pose(torso=4, head_tilt=12, front_arm=(55, 118), back_arm=(-6, -4)),
     "shrug":        Pose(head_tilt=5, front_arm=(45, 115), back_arm=(-45, -115)),
@@ -52,8 +52,30 @@ POSE_LIBRARY = {
     "presenting":   Pose(torso=2, front_arm=(70, 35), back_arm=(-25, -18)),
     "walking":      Pose(),
     "mind_blown":   Pose(torso=-8, head_tilt=-5, front_arm=(135, 55), back_arm=(-135, -55)),
-    "celebrating":  Pose(front_arm=(150, 12), back_arm=(-150, -12)),
+    "celebrating":  Pose(front_arm=(128, 15), back_arm=(-128, -15)),
 }
+
+# Crumpled-on-the-floor target used by the "collapse" action.
+COLLAPSED = Pose(torso=58, head_tilt=28, front_arm=(35, 20), back_arm=(-30, -15),
+                 front_leg=(60, 75), back_leg=(-55, -70), y_offset=-0.10)
+
+
+def lerp_pose(a: Pose, b: Pose, u: float) -> Pose:
+    u = max(0.0, min(1.0, u))
+
+    def l(x: float, y: float) -> float:
+        return x + (y - x) * u
+
+    return Pose(
+        torso=l(a.torso, b.torso),
+        head_tilt=l(a.head_tilt, b.head_tilt),
+        front_arm=(l(a.front_arm[0], b.front_arm[0]), l(a.front_arm[1], b.front_arm[1])),
+        back_arm=(l(a.back_arm[0], b.back_arm[0]), l(a.back_arm[1], b.back_arm[1])),
+        front_leg=(l(a.front_leg[0], b.front_leg[0]), l(a.front_leg[1], b.front_leg[1])),
+        back_leg=(l(a.back_leg[0], b.back_leg[0]), l(a.back_leg[1], b.back_leg[1])),
+        y_offset=l(a.y_offset, b.y_offset),
+    )
+
 
 # Proportions relative to character scale S (total height ~= S).
 HEAD_R = 0.110
@@ -120,6 +142,10 @@ def _limb(draw, origin: Vec, seg1: float, seg2: float, angles: Tuple[float, floa
     return end
 
 
+HEAD_FILL: RGB = (252, 250, 244)
+FACE_INK: RGB = (30, 30, 36)
+
+
 def draw_character(
     draw: ImageDraw.ImageDraw,
     ground: Vec,
@@ -132,7 +158,9 @@ def draw_character(
     blink: bool = False,
     facing: int = 1,
     accessory: str = "none",
+    hair: str = "none",
     accent: RGB = (255, 214, 10),
+    shadow: bool = True,
 ) -> None:
     """Draw one stickman anchored at `ground` (feet position when standing)."""
     S = scale
@@ -142,28 +170,72 @@ def draw_character(
     leg_len = (THIGH + SHIN) * S * 0.96
     pelvis = (ground[0], ground[1] - leg_len - pose.y_offset * S)
 
+    # Ground contact shadow (squashes slightly when the character jumps).
+    if shadow:
+        sw = S * (0.30 - 0.10 * min(1.0, pose.y_offset * 6))
+        sh = S * 0.035
+        draw.ellipse([ground[0] - sw, ground[1] - sh, ground[0] + sw, ground[1] + sh],
+                     fill=mix(bg_fill, (0, 0, 0), 0.18))
+
     # Torso (angle from straight up).
     ta = math.radians(pose.torso)
     neck = (pelvis[0] + math.sin(ta) * TORSO * S * facing, pelvis[1] - math.cos(ta) * TORSO * S)
     shoulder = (pelvis[0] + math.sin(ta) * TORSO * S * 0.92 * facing,
                 pelvis[1] - math.cos(ta) * TORSO * S * 0.92)
 
+    hand_r = width * 0.85
+    foot_len = S * 0.075
+
     # Back limbs first (slightly darkened for depth), then torso, front limbs.
     back_color = mix(color, bg_fill, 0.25)
-    _limb(draw, pelvis, THIGH * S, SHIN * S, pose.back_leg, back_color, width, facing)
-    _limb(draw, shoulder, UPPER_ARM * S, FOREARM * S, pose.back_arm, back_color, width, facing)
+    end = _limb(draw, pelvis, THIGH * S, SHIN * S, pose.back_leg, back_color, width, facing)
+    _foot(draw, end, foot_len, back_color, width, facing)
+    end = _limb(draw, shoulder, UPPER_ARM * S, FOREARM * S, pose.back_arm, back_color, width, facing)
+    _hand(draw, end, hand_r, back_color)
     _line(draw, pelvis, neck, color, width)
-    _limb(draw, pelvis, THIGH * S, SHIN * S, pose.front_leg, color, width, facing)
-    _limb(draw, shoulder, UPPER_ARM * S, FOREARM * S, pose.front_arm, color, width, facing)
+    end = _limb(draw, pelvis, THIGH * S, SHIN * S, pose.front_leg, color, width, facing)
+    _foot(draw, end, foot_len, color, width, facing)
+    end = _limb(draw, shoulder, UPPER_ARM * S, FOREARM * S, pose.front_arm, color, width, facing)
+    _hand(draw, end, hand_r, color)
 
-    # Head: filled with the background base color so limbs never cross the face.
+    # Head: warm fill with the body color as outline; face ink stays dark so
+    # expressions read identically on every background.
     ha = math.radians(pose.torso + pose.head_tilt)
     hc = (neck[0] + math.sin(ha) * head_r * 1.18 * facing, neck[1] - math.cos(ha) * head_r * 1.18)
     draw.ellipse([hc[0] - head_r, hc[1] - head_r, hc[0] + head_r, hc[1] + head_r],
-                 fill=bg_fill, outline=color, width=width)
+                 fill=HEAD_FILL, outline=color, width=width)
 
-    _draw_face(draw, hc, head_r, color, emotion, mouth_open, blink, facing, width, bg_fill)
+    _draw_hair(draw, hair, hc, head_r, color, width, facing)
+    _draw_face(draw, hc, head_r, FACE_INK, emotion, mouth_open, blink, facing, width, HEAD_FILL)
     _draw_accessory(draw, accessory, hc, head_r, neck, color, accent, width, facing)
+
+
+def _hand(draw, p: Vec, r: float, color: RGB) -> None:
+    draw.ellipse([p[0] - r, p[1] - r, p[0] + r, p[1] + r], fill=color)
+
+
+def _foot(draw, p: Vec, length: float, color: RGB, width: int, facing: int) -> None:
+    _line(draw, p, (p[0] + length * facing, p[1]), color, width)
+
+
+def _draw_hair(draw, hair: str, hc: Vec, r: float, color: RGB, width: int, facing: int) -> None:
+    fw = max(2, int(width * 0.8))
+    if hair == "spiky":
+        for k in range(5):
+            ang = math.radians(-95 + 36 * k - 72)  # fan over the top
+            base = (hc[0] + math.cos(ang) * r * 0.92, hc[1] + math.sin(ang) * r * 0.92)
+            tip = (hc[0] + math.cos(ang - 0.12) * r * 1.32, hc[1] + math.sin(ang - 0.12) * r * 1.32)
+            _line(draw, base, tip, color, fw)
+    elif hair == "bob":
+        draw.arc([hc[0] - r * 1.12, hc[1] - r * 1.12, hc[0] + r * 1.12, hc[1] + r * 0.95],
+                 start=150, end=390, fill=color, width=int(r * 0.22))
+    elif hair == "curly":
+        for k in range(4):
+            ang = math.radians(-150 + 40 * k)
+            cx = hc[0] + math.cos(ang) * r * 0.95
+            cy = hc[1] + math.sin(ang) * r * 0.95
+            cr = r * 0.26
+            draw.ellipse([cx - cr, cy - cr, cx + cr, cy + cr], fill=color)
 
 
 # --------------------------------------------------------------------------- face

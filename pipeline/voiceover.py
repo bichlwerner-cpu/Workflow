@@ -27,7 +27,7 @@ from typing import Dict, List, Optional
 
 import requests
 
-from .config import CharacterConfig, Settings, require_env
+from .config import Settings, VoiceConfig, require_env
 from .models import Script
 
 API_BASE = "https://api.elevenlabs.io/v1"
@@ -36,16 +36,14 @@ MAX_STITCH_IDS = 3
 
 @dataclass
 class VoicedLine:
-    """One synthesized dialogue line with timing metadata."""
+    """One synthesized narration beat with timing + staging metadata."""
 
-    line_id: str          # e.g. "c02_s01_l03"
+    line_id: str          # e.g. "c02_s001_l03"
     section: str          # "hook" | "chapter:<i>" | "outro"
     chapter_index: int    # -1 hook, 0..n-1 chapters, n outro
     scene_index: int      # scene index within the whole video (global)
-    character: str
     text: str
-    emotion: str
-    pose: str
+    actors: List[dict]    # [{character, pose, emotion, action}], 0-2 entries
     prop: str
     camera: str
     wav_path: str
@@ -111,22 +109,24 @@ class ElevenLabsClient:
     def synthesize_with_timestamps(
         self,
         text: str,
-        voice: "CharacterConfig",
+        v: "VoiceConfig",
         previous_request_ids: List[str],
         previous_text: Optional[str],
         next_text: Optional[str],
     ) -> tuple:
         """Returns (audio_bytes, alignment_dict, request_id)."""
-        v = voice.voice
+        voice_settings: Dict = {
+            "stability": v.stability,
+            "similarity_boost": v.similarity_boost,
+            "style": v.style,
+            "use_speaker_boost": v.use_speaker_boost,
+        }
+        if abs(v.speed - 1.0) > 1e-3:
+            voice_settings["speed"] = v.speed
         body: Dict = {
             "text": text,
             "model_id": v.model_id,
-            "voice_settings": {
-                "stability": v.stability,
-                "similarity_boost": v.similarity_boost,
-                "style": v.style,
-                "use_speaker_boost": v.use_speaker_boost,
-            },
+            "voice_settings": voice_settings,
         }
         # Per the API docs previous_text is ignored when previous_request_ids
         # is present, so send whichever we have (ids preferred).
@@ -148,8 +148,7 @@ class ElevenLabsClient:
                     raise requests.HTTPError(f"{r.status_code}: {r.text[:300]}", response=r)
                 if r.status_code >= 400:
                     raise SystemExit(
-                        f"ElevenLabs error {r.status_code} for voice '{voice.key}' "
-                        f"({v.voice_id}): {r.text[:500]}"
+                        f"ElevenLabs error {r.status_code} for voice {v.voice_id}: {r.text[:500]}"
                     )
                 payload = r.json()
                 audio = base64.b64decode(payload["audio_base64"])
@@ -165,45 +164,40 @@ class ElevenLabsClient:
 
 
 def synthesize_script(settings: Settings, script: Script, outdir: Path, log=print) -> List[VoicedLine]:
-    """Synthesize every line of the script. Returns lines in playback order."""
+    """Synthesize every narration beat with the narrator voice, in playback order."""
     audio_dir = outdir / "audio"
     audio_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = outdir / "voice_manifest.json"
 
     client = ElevenLabsClient(settings)
-    # Validate cast/voice config early so we fail before spending quota.
-    for c in settings.characters.values():
-        if not c.voice.voice_id:
-            raise SystemExit(f"Character '{c.key}' has no voice_id in config/characters.yaml")
-        if "v3" in c.voice.model_id:
-            log(f"    [voice] WARNING: {c.key} uses {c.voice.model_id} — request stitching "
-                f"is unavailable on v3 models; voice consistency may suffer.")
+    narrator = settings.narrator
+    if not narrator.voice_id:
+        raise SystemExit("No narrator voice configured — set narrator.voice.voice_id "
+                         "in config/characters.yaml")
+    if "v3" in narrator.model_id:
+        log(f"    [voice] WARNING: narrator uses {narrator.model_id} — request stitching "
+            f"is unavailable on v3 models; voice consistency may suffer.")
 
-    # Flatten lines with neighbor context.
+    # Flatten beats with neighbor context (single narrator -> every neighbor counts).
     flat = []
     for section, ch_idx, scene_idx, scene in _flatten(script):
         for li, line in enumerate(scene.lines):
             flat.append((section, ch_idx, scene_idx, li, line))
 
-    stitch_chain: Dict[str, List[str]] = {}  # voice_id -> recent request ids
+    chain: List[str] = []  # request-id chain for stitching
     voiced: List[VoicedLine] = []
     n = len(flat)
 
     for i, (section, ch_idx, scene_idx, li, line) in enumerate(flat):
-        char = settings.characters[line.character]
         line_id = f"c{ch_idx + 1:02d}_s{scene_idx:03d}_l{li:02d}"
-        wav_path = audio_dir / f"{line_id}_{line.character}.wav"
+        wav_path = audio_dir / f"{line_id}.wav"
         align_path = wav_path.with_suffix(".align.json")
 
-        # Same-speaker neighbor context for prosody.
-        prev_text = next_text = None
-        if i > 0 and flat[i - 1][4].character == line.character:
-            prev_text = flat[i - 1][4].text
-        if i + 1 < n and flat[i + 1][4].character == line.character:
-            next_text = flat[i + 1][4].text
+        prev_text = flat[i - 1][4].text if i > 0 else None
+        next_text = flat[i + 1][4].text if i + 1 < n else None
 
         cache_key = hashlib.sha1(json.dumps({
-            "voice": char.voice.__dict__, "fmt": client.output_format,
+            "voice": narrator.__dict__, "fmt": client.output_format,
             "text": line.text, "prev": prev_text, "next": next_text,
         }, sort_keys=True).encode()).hexdigest()[:16]
 
@@ -215,11 +209,10 @@ def synthesize_script(settings: Settings, script: Script, outdir: Path, log=prin
             align = json.loads(align_path.read_text())
             log(f"    [voice] {i + 1}/{n} {line_id} (cached)")
         else:
-            log(f"    [voice] {i + 1}/{n} {line_id} [{line.character}] "
-                f"\"{line.text[:48]}{'...' if len(line.text) > 48 else ''}\"")
-            chain = stitch_chain.setdefault(char.voice.voice_id, [])
+            log(f"    [voice] {i + 1}/{n} {line_id} "
+                f"\"{line.text[:52]}{'...' if len(line.text) > 52 else ''}\"")
             audio, alignment, request_id = client.synthesize_with_timestamps(
-                line.text, char, chain, prev_text, next_text,
+                line.text, narrator, chain, prev_text, next_text,
             )
             if request_id:
                 chain.append(request_id)
@@ -243,8 +236,9 @@ def synthesize_script(settings: Settings, script: Script, outdir: Path, log=prin
 
         voiced.append(VoicedLine(
             line_id=line_id, section=section, chapter_index=ch_idx,
-            scene_index=scene_idx, character=line.character, text=line.text,
-            emotion=line.emotion, pose=line.pose, prop=line.prop, camera=line.camera,
+            scene_index=scene_idx, text=line.text,
+            actors=[a.model_dump() for a in line.actors],
+            prop=line.prop, camera=line.camera,
             wav_path=str(wav_path), duration=float(align["duration"]),
             chars=align["chars"], char_starts=align["starts"], char_ends=align["ends"],
         ))

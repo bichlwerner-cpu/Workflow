@@ -229,17 +229,16 @@ def cmd_validate(args) -> None:
     check("display font found", settings.font_path() is not None,
           "drop a bold .ttf into assets/fonts/ (see settings.yaml fonts list)")
     check("characters registered", len(settings.characters) > 0)
-    for c in settings.characters.values():
-        check(f"voice_id for '{c.key}'", bool(c.voice.voice_id))
+    check("narrator voice configured", bool(settings.narrator.voice_id),
+          "set narrator.voice.voice_id in config/characters.yaml")
 
     if os.environ.get("ELEVENLABS_API_KEY"):
         try:
             from .voiceover import ElevenLabsClient
             voices = {v["voice_id"] for v in ElevenLabsClient(settings).list_voices()}
-            for c in settings.characters.values():
-                check(f"voice '{c.key}' exists in your ElevenLabs account",
-                      c.voice.voice_id in voices,
-                      "premade voices work even if not listed; verify with a test synth")
+            check("narrator voice exists in your ElevenLabs account",
+                  settings.narrator.voice_id in voices,
+                  "premade voices work even if not listed; verify with a test synth")
         except SystemExit:
             raise
         except Exception as e:

@@ -1,66 +1,58 @@
 # ----------------------------------------------------------------------------
-# Character registry — THE source of consistency.
+# Cast registry — THE source of consistency.
 #
-# The script writer may only use characters defined here, the renderer draws
-# them with exactly these visual parameters in every video, and the voiceover
-# always uses the same ElevenLabs voice per character.
+# narrator: ONE ElevenLabs voice speaks the entire video (single-narrator
+# format, like every big explainer channel). The characters below are SILENT
+# actors: the script writer directs them (poses, emotions, movements) and the
+# renderer draws them identically in every video.
 #
-# voice_id: the defaults below are well-known ElevenLabs premade voices so the
-# pipeline works out of the box. For a distinctive channel, create/clone your
-# own voices in ElevenLabs (you have premium) and paste their IDs here.
-# List available IDs with:  python -m pipeline list-voices
+# voice_id: the default is the well-known ElevenLabs premade voice "Adam".
+# For a distinctive channel, clone/design your own voice (you have premium)
+# and paste its ID here. List available IDs:  python -m pipeline list-voices
 #
 # IMPORTANT for voice consistency:
 #   - keep model_id = eleven_multilingual_v2 (request stitching, which keeps
 #     prosody consistent across a long video, is NOT supported by eleven_v3)
-#   - never change stability/similarity per video; tune once, then freeze
+#   - tune stability/style once, then freeze them
+#   - speed 1.07 keeps long-form pacing brisk without sounding rushed
 # ----------------------------------------------------------------------------
+
+narrator:
+  voice:
+    voice_id: pNInz6obpgDQGcFmaJgB   # ElevenLabs premade "Adam" — replace with your own
+    model_id: eleven_multilingual_v2
+    stability: 0.50
+    similarity_boost: 0.80
+    style: 0.45
+    use_speaker_boost: true
+    speed: 1.07
 
 characters:
 
   sticky:
     display_name: Sticky
     persona: >
-      The main character and narrator. Curious, quick-witted, talks directly
-      to the viewer like a smart friend. Asks the questions the audience is
-      thinking, reacts strongly to surprising facts.
+      The protagonist — "you". Every relatable struggle, mistake and win in
+      the narration happens to Sticky. Expressive, dramatic body language.
     color: "#1B1B1F"
     accessory: none        # none | glasses | hat | bowtie | mustache
-    voice:
-      voice_id: pNInz6obpgDQGcFmaJgB   # ElevenLabs premade "Adam" — replace with your own
-      model_id: eleven_multilingual_v2
-      stability: 0.55
-      similarity_boost: 0.80
-      style: 0.35
-      use_speaker_boost: true
+    hair: spiky            # none | spiky | bob | curly
 
   prof:
     display_name: Prof. Cortex
     persona: >
-      A warm, slightly eccentric psychology professor. Explains studies and
-      mechanisms in simple words, loves a dramatic reveal, occasionally
-      mischievous. Brings the evidence.
+      The brain/expert figure. Appears when the narration explains mechanisms
+      or studies: points at diagrams, presents evidence, reveals twists.
     color: "#1F3A5F"
     accessory: glasses
-    voice:
-      voice_id: 21m00Tcm4TlvDq8ikWAM   # ElevenLabs premade "Rachel" — replace with your own
-      model_id: eleven_multilingual_v2
-      stability: 0.60
-      similarity_boost: 0.80
-      style: 0.25
-      use_speaker_boost: true
+    hair: curly
 
   doubt:
     display_name: Doubt
     persona: >
-      The skeptic. Voices the viewer's objections, challenges every claim,
-      and gets convinced (or vindicated) by the evidence. Dry humor.
+      The antagonist — inner critic, temptation, social pressure. Appears
+      when the narration describes what sabotages you; smug, looming,
+      dismissive. Gets defeated in payoff beats.
     color: "#7A1E1E"
     accessory: none
-    voice:
-      voice_id: TxGEqnHWrfWFTfGW9XjX   # ElevenLabs premade "Josh" — replace with your own
-      model_id: eleven_multilingual_v2
-      stability: 0.50
-      similarity_boost: 0.80
-      style: 0.40
-      use_speaker_boost: true
+    hair: none

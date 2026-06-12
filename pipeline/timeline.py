@@ -134,8 +134,9 @@ def build_timeline(settings: Settings, script: Script, voiced: List[VoicedLine])
 
         chars: List[str] = []
         for v in vlines:
-            if v.character not in chars:
-                chars.append(v.character)
+            for actor in v.actors:
+                if actor["character"] not in chars:
+                    chars.append(actor["character"])
 
         timed_scenes.append(TimedScene(
             scene_index=si, chapter_index=ch_idx, background=scene.background,
@@ -210,7 +211,8 @@ def save_timeline_summary(timeline: Timeline, path: Path) -> None:
              "background": s.background, "characters": s.characters,
              "start": round(s.start, 3), "end": round(s.end, 3),
              "lines": [
-                 {"id": tl.voiced.line_id, "character": tl.voiced.character,
+                 {"id": tl.voiced.line_id,
+                  "actors": [a["character"] for a in tl.voiced.actors],
                   "start": round(tl.start, 3), "end": round(tl.end, 3),
                   "text": tl.voiced.text}
                  for tl in s.lines

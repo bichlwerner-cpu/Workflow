@@ -20,14 +20,20 @@ gezeichnet** (parametrisches Skelett-Modell in `pipeline/stickman.py`). Dadurch:
   aus den ElevenLabs-Timestamps, Blinzeln, Gesten, Idle-Bewegung),
 - kostet das Rendern nichts außer CPU-Zeit.
 
-Die **Stimmen** bleiben konsistent durch drei Mechanismen:
+**Format: Ein Erzähler, stumme Schauspieler.** Eine einzige ElevenLabs-Stimme
+spricht das ganze Video (wie bei allen großen Erklär-Kanälen); die
+Stickman-Charaktere spielen die Erzählung stumm als Szenen nach — mit
+Auftritten, Märschen, Sprüngen, Zusammenbrüchen und Metapher-Kulissen
+(Berg = Ziel, Weggabelung = Entscheidung, Mauer = Hindernis, Grube = Tiefpunkt).
 
-1. Pro Charakter eine feste `voice_id` mit eingefrorenen Voice-Settings
-   (`config/characters.yaml`).
-2. **Request Stitching**: Jede Zeile übergibt die `previous_request_ids` der
-   letzten Generierungen derselben Stimme — die Prosodie bleibt über das ganze
-   Video kohärent (deshalb `eleven_multilingual_v2`, **nicht** `eleven_v3` —
-   v3 unterstützt kein Stitching).
+Die **Erzählstimme** bleibt konsistent durch drei Mechanismen:
+
+1. Eine feste `voice_id` mit eingefrorenen Voice-Settings
+   (`narrator:` in `config/characters.yaml`).
+2. **Request Stitching**: Jeder Beat übergibt die `previous_request_ids` der
+   letzten Generierungen — die Prosodie bleibt über das ganze Video kohärent
+   (deshalb `eleven_multilingual_v2`, **nicht** `eleven_v3` — v3 unterstützt
+   kein Stitching).
 3. `previous_text` / `next_text` Kontext für natürlichen Satzfluss.
 
 ## Setup

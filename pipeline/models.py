@@ -10,31 +10,46 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
-from .vocab import (BACKGROUNDS, CAMERAS, EMOTIONS, POSES, PROPS, Background,
-                    Camera, Emotion, PoseName, Prop)
+from .vocab import (ACTIONS, BACKGROUNDS, CAMERAS, EMOTIONS, POSES, PROPS,
+                    Action, Background, Camera, Emotion, PoseName, Prop)
 
 
-class Line(BaseModel):
-    """One spoken dialogue line by one character."""
+class Actor(BaseModel):
+    """Stage direction for one silent on-screen character during a beat."""
 
     character: str = Field(description="Character key from the cast list.")
-    text: str = Field(description="The spoken words. 6-30 words, conversational.")
-    emotion: Emotion = Field(default="neutral", description="Facial expression while speaking.")
-    pose: PoseName = Field(default="talking", description="Body pose while speaking.")
-    prop: Prop = Field(default="none", description="Floating icon shown next to the speaker, or 'none'.")
-    camera: Camera = Field(default="normal", description="'shake' for shock beats, 'zoom_in' for emphasis, else 'normal'.")
+    pose: PoseName = Field(default="idle", description="Body pose during this beat.")
+    emotion: Emotion = Field(default="neutral", description="Facial expression during this beat.")
+    action: Action = Field(default="none", description="Movement: entrances, exits, walks, jump, collapse — or 'none'.")
 
     # Providers without enforced enums (e.g. Gemini free tier) occasionally
     # emit values outside the vocabulary; coerce instead of failing the video.
+    @field_validator("pose", mode="before")
+    @classmethod
+    def _coerce_pose(cls, v):
+        return v if v in POSES else "idle"
+
     @field_validator("emotion", mode="before")
     @classmethod
     def _coerce_emotion(cls, v):
         return v if v in EMOTIONS else "neutral"
 
-    @field_validator("pose", mode="before")
+    @field_validator("action", mode="before")
     @classmethod
-    def _coerce_pose(cls, v):
-        return v if v in POSES else "talking"
+    def _coerce_action(cls, v):
+        return v if v in ACTIONS else "none"
+
+
+class Line(BaseModel):
+    """One narration beat: what the narrator says + what plays on screen."""
+
+    text: str = Field(description="Narrator voiceover for this beat. 8-22 words, punchy spoken rhythm.")
+    actors: List[Actor] = Field(
+        default_factory=list,
+        description="0-2 silent stickman actors performing this beat on screen. Empty list = diagram/prop-only shot.",
+    )
+    prop: Prop = Field(default="none", description="Floating icon for this beat, or 'none'.")
+    camera: Camera = Field(default="normal", description="'shake' for shock beats, 'zoom_in' for emphasis, else 'normal'.")
 
     @field_validator("prop", mode="before")
     @classmethod
@@ -46,6 +61,11 @@ class Line(BaseModel):
     def _coerce_camera(cls, v):
         return v if v in CAMERAS else "normal"
 
+    @field_validator("actors", mode="before")
+    @classmethod
+    def _limit_actors(cls, v):
+        return (v or [])[:2]
+
 
 class Scene(BaseModel):
     """A continuous beat with a fixed background and 1-3 characters."""
@@ -55,7 +75,7 @@ class Scene(BaseModel):
         default=None,
         description="Optional short on-screen text (max 6 words), e.g. a key term or number. Use sparingly.",
     )
-    lines: List[Line] = Field(description="2-6 dialogue lines.")
+    lines: List[Line] = Field(description="1-4 narration beats; the visual staging changes with every beat.")
 
     @field_validator("background", mode="before")
     @classmethod
