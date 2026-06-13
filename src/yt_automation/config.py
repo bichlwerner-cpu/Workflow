@@ -9,6 +9,7 @@ load_dotenv()
 
 
 TTSProvider = Literal["edge", "elevenlabs"]
+ScriptProvider = Literal["claude", "gemini"]
 
 
 @dataclass(frozen=True)
@@ -20,10 +21,13 @@ class Config:
     elevenlabs_voice_id: str
     elevenlabs_model_id: str
 
-    # LLM (only required for auto-script commands)
+    # Script LLM (only required for auto-script commands)
+    script_provider: ScriptProvider
     anthropic_api_key: str  # may be empty
     anthropic_model: str
     anthropic_effort: str
+    gemini_api_key: str  # may be empty
+    gemini_model: str
 
     # Whisper
     whisper_model: str
@@ -49,6 +53,12 @@ class Config:
                 f"TTS_PROVIDER must be 'edge' or 'elevenlabs', got '{provider}'"
             )
 
+        script_provider = os.environ.get("SCRIPT_PROVIDER", "claude").strip().lower()
+        if script_provider not in ("claude", "gemini"):
+            raise RuntimeError(
+                f"SCRIPT_PROVIDER must be 'claude' or 'gemini', got '{script_provider}'"
+            )
+
         return cls(
             tts_provider=provider,  # type: ignore[arg-type]
             edge_voice=os.environ.get("EDGE_VOICE", "de-DE-KatjaNeural"),
@@ -59,9 +69,15 @@ class Config:
             elevenlabs_model_id=os.environ.get(
                 "ELEVENLABS_MODEL_ID", "eleven_multilingual_v2"
             ),
+            script_provider=script_provider,  # type: ignore[arg-type]
             anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY", "").strip(),
             anthropic_model=os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-7"),
             anthropic_effort=os.environ.get("ANTHROPIC_EFFORT", "high"),
+            gemini_api_key=(
+                os.environ.get("GEMINI_API_KEY")
+                or os.environ.get("GOOGLE_API_KEY", "")
+            ).strip(),
+            gemini_model=os.environ.get("GEMINI_MODEL", "gemini-2.5-flash"),
             whisper_model=os.environ.get("WHISPER_MODEL", "base"),
             output_dir=out,
             music_dir=music_dir,
@@ -75,6 +91,19 @@ class Config:
                 "ANTHROPIC_API_KEY in .env, or use `yt-automation from-text` "
                 "to skip the auto-script step."
             )
+
+    def require_gemini(self) -> None:
+        if not self.gemini_api_key:
+            raise RuntimeError(
+                "SCRIPT_PROVIDER=gemini but GEMINI_API_KEY is empty. "
+                "Set GEMINI_API_KEY (or GOOGLE_API_KEY) in .env."
+            )
+
+    def require_script_llm(self) -> None:
+        if self.script_provider == "gemini":
+            self.require_gemini()
+        else:
+            self.require_anthropic()
 
     def require_elevenlabs(self) -> None:
         if not self.elevenlabs_api_key:

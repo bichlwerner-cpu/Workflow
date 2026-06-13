@@ -104,8 +104,8 @@ def run_pipeline(
     music: Path | None = None,
     word_captions: bool = False,
 ) -> PipelineResult:
-    """Auto-script via Claude, then render."""
-    cfg.require_anthropic()
+    """Auto-script via the configured LLM (Claude or Gemini), then render."""
+    cfg.require_script_llm()
     script = generate_script(
         cfg, topic,
         duration_seconds=duration_seconds, style=style, language=language,

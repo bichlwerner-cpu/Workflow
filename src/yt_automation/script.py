@@ -1,12 +1,10 @@
-"""Generate a structured video script via Claude Opus 4.7."""
+"""Generate a structured video script via Claude or Gemini."""
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Literal
 
-import anthropic
 from pydantic import BaseModel, Field
 
 from .config import Config
@@ -38,16 +36,30 @@ class VideoScript(BaseModel):
 
 SYSTEM_PROMPT = """You are a senior YouTube scriptwriter.
 
-You write tight, retention-optimized scripts for short-to-mid-form videos (60-180 seconds).
+You write tight, retention-optimized voiceover scripts. Adapt structure to the
+requested duration: for short videos a single punchy arc; for long-form (4+
+minutes) a clear through-line with distinct sections, mini-hooks between them,
+and a satisfying payoff.
 
 Hard rules:
 - Voiceover text must be natural spoken prose, never bracketed stage directions, never markdown.
 - Open with a hook that creates curiosity or stakes within the first sentence.
-- Cut filler. Every sentence must earn its place.
+- Cut filler. Every sentence must earn its place; keep momentum across the whole runtime.
 - Match the requested language exactly (default German if the topic is German).
 - On-screen text is optional and should only appear when it adds information the voiceover does not carry.
 - Tags are lowercase, single words or short phrases, comma-free.
 """
+
+
+def _user_prompt(topic: str, duration_seconds: int, style: Style, language: str) -> str:
+    words = int(duration_seconds * 2.5)  # ~150 wpm spoken
+    return (
+        f"Topic: {topic}\n"
+        f"Target duration: {duration_seconds} seconds (~{words} words of voiceover).\n"
+        f"Style: {style}\n"
+        f"Language: {language}\n\n"
+        "Produce the full script as structured JSON."
+    )
 
 
 def generate_script(
@@ -58,16 +70,18 @@ def generate_script(
     style: Style = "explainer",
     language: str = "de",
 ) -> VideoScript:
+    """Dispatch to the configured script provider (claude | gemini)."""
+    if cfg.script_provider == "gemini":
+        return _generate_gemini(cfg, topic, duration_seconds, style, language)
+    return _generate_claude(cfg, topic, duration_seconds, style, language)
+
+
+def _generate_claude(
+    cfg: Config, topic: str, duration_seconds: int, style: Style, language: str
+) -> VideoScript:
+    import anthropic
+
     client = anthropic.Anthropic(api_key=cfg.anthropic_api_key)
-
-    user_prompt = (
-        f"Topic: {topic}\n"
-        f"Target duration: {duration_seconds} seconds (~{duration_seconds * 2.5:.0f} words of voiceover).\n"
-        f"Style: {style}\n"
-        f"Language: {language}\n\n"
-        "Produce the full script as structured JSON."
-    )
-
     response = client.messages.parse(
         model=cfg.anthropic_model,
         max_tokens=8000,
@@ -80,11 +94,36 @@ def generate_script(
                 "cache_control": {"type": "ephemeral"},
             }
         ],
-        messages=[{"role": "user", "content": user_prompt}],
+        messages=[{"role": "user", "content": _user_prompt(topic, duration_seconds, style, language)}],
         output_format=VideoScript,
     )
-
     return response.parsed_output
+
+
+def _generate_gemini(
+    cfg: Config, topic: str, duration_seconds: int, style: Style, language: str
+) -> VideoScript:
+    from google import genai
+    from google.genai import types
+
+    client = genai.Client(api_key=cfg.gemini_api_key)
+    response = client.models.generate_content(
+        model=cfg.gemini_model,
+        contents=_user_prompt(topic, duration_seconds, style, language),
+        config=types.GenerateContentConfig(
+            system_instruction=SYSTEM_PROMPT,
+            response_mime_type="application/json",
+            response_schema=VideoScript,
+            temperature=0.9,
+        ),
+    )
+    parsed = response.parsed
+    if parsed is None:
+        # Fall back to manual JSON validation if the SDK didn't auto-parse.
+        return VideoScript.model_validate_json(response.text)
+    if isinstance(parsed, VideoScript):
+        return parsed
+    return VideoScript.model_validate(parsed)
 
 
 def save_script(script: VideoScript, path: Path) -> None:

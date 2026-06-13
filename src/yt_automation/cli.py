@@ -121,9 +121,9 @@ def script(
     language: Annotated[str, typer.Option()] = "de",
     out: Annotated[Path, typer.Option()] = Path("out/script.json"),
 ) -> None:
-    """Nur Skript via Claude. Braucht Anthropic-Key."""
+    """Nur Skript via Claude oder Gemini (SCRIPT_PROVIDER). Braucht den passenden Key."""
     cfg = Config.load()
-    cfg.require_anthropic()
+    cfg.require_script_llm()
     with console.status("Generiere Skript..."):
         s = generate_script(
             cfg, topic, duration_seconds=duration, style=style, language=language,

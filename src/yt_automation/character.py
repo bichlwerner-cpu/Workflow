@@ -36,6 +36,32 @@ OUTLINE_W = 7.0
 ARM_W = 34.0
 LEG_W = 40.0
 
+# --------------------------------------------------------------------------
+# Palette presets -- pick the brand identity with use_palette("name").
+# Each preset is a full colour set; shades/highlights are tuned per colour.
+# --------------------------------------------------------------------------
+PALETTES: dict[str, dict[str, str]] = {
+    "sunny":  {"BODY": "#FFC83D", "BODY_SHADE": "#F2A53A", "BODY_LIGHT": "#FFE08A",
+               "OUTLINE": "#2A2118", "CHEEK": "#FF8C69", "SHOE": "#2A2118"},
+    "teal":   {"BODY": "#36C5C0", "BODY_SHADE": "#2AA8A4", "BODY_LIGHT": "#8FE7E3",
+               "OUTLINE": "#143534", "CHEEK": "#FF8C69", "SHOE": "#143534"},
+    "blue":   {"BODY": "#4D9DE0", "BODY_SHADE": "#3E82BC", "BODY_LIGHT": "#AFD6F4",
+               "OUTLINE": "#15273A", "CHEEK": "#FF8C69", "SHOE": "#15273A"},
+    "purple": {"BODY": "#9B6DD6", "BODY_SHADE": "#7E55B5", "BODY_LIGHT": "#D0B6F0",
+               "OUTLINE": "#291A3E", "CHEEK": "#FF9AA2", "SHOE": "#291A3E"},
+    "coral":  {"BODY": "#FF8A5B", "BODY_SHADE": "#E8714A", "BODY_LIGHT": "#FFC2A4",
+               "OUTLINE": "#3A1E14", "CHEEK": "#FF5E7A", "SHOE": "#3A1E14"},
+}
+
+
+def use_palette(name: str) -> None:
+    """Re-skin the whole character by swapping the active colour set."""
+    global BODY, BODY_SHADE, BODY_LIGHT, OUTLINE, PUPIL, CHEEK, SHOE, SHADOW
+    p = PALETTES[name]
+    BODY, BODY_SHADE, BODY_LIGHT = p["BODY"], p["BODY_SHADE"], p["BODY_LIGHT"]
+    OUTLINE = PUPIL = SHADOW = p["OUTLINE"]
+    CHEEK, SHOE = p["CHEEK"], p["SHOE"]
+
 # Canvas
 CW, CH = 600, 760
 
@@ -246,7 +272,29 @@ def _mouth(kind):
 # --------------------------------------------------------------------------
 # Assemble
 # --------------------------------------------------------------------------
-def build_svg(pose: Pose, expr: Expression, *, bg: str | None = None, scale: float = 1.0) -> str:
+def _glasses(eL, eR, eye_y):
+    """Round intellectual glasses over the eyes (psychology / 'smart' brand cue)."""
+    r = 38.0
+    bridge = (f'<line x1="{eL + r - 4:.1f}" y1="{eye_y:.1f}" x2="{eR - r + 4:.1f}" y2="{eye_y:.1f}" '
+              f'stroke="{OUTLINE}" stroke-width="7" stroke-linecap="round"/>')
+    temples = (f'<line x1="{eL - r:.1f}" y1="{eye_y - 2:.1f}" x2="{eL - r - 34:.1f}" y2="{eye_y - 10:.1f}" '
+               f'stroke="{OUTLINE}" stroke-width="7" stroke-linecap="round"/>'
+               f'<line x1="{eR + r:.1f}" y1="{eye_y - 2:.1f}" x2="{eR + r + 34:.1f}" y2="{eye_y - 10:.1f}" '
+               f'stroke="{OUTLINE}" stroke-width="7" stroke-linecap="round"/>')
+    lenses = ""
+    for cx in (eL, eR):
+        lenses += (f'<circle cx="{cx:.1f}" cy="{eye_y:.1f}" r="{r:.1f}" fill="{WHITE}" fill-opacity="0.18" '
+                   f'stroke="{OUTLINE}" stroke-width="7"/>'
+                   f'<path d="M {cx - r + 8:.1f} {eye_y - 14:.1f} Q {cx - 4:.1f} {eye_y - r + 6:.1f} {cx + 14:.1f} {eye_y - r + 12:.1f}" '
+                   f'fill="none" stroke="{WHITE}" stroke-width="5" stroke-linecap="round" opacity="0.6"/>')
+    return temples + bridge + lenses
+
+
+ACCESSORIES = ("glasses",)
+
+
+def build_svg(pose: Pose, expr: Expression, *, bg: str | None = None, scale: float = 1.0,
+              accessory: str | None = None) -> str:
     L_arm, R_arm = pose.arm_l, pose.arm_r
     L_leg, R_leg = pose.leg_l, pose.leg_r
 
@@ -302,6 +350,9 @@ def build_svg(pose: Pose, expr: Expression, *, bg: str | None = None, scale: flo
         head.append(_brow(eR, eye_y - 44, +1, expr.brow, expr.brow_dy))
     # mouth
     head.append(_mouth(expr.mouth))
+    # accessory
+    if accessory == "glasses":
+        head.append(_glasses(eL, eR, eye_y))
 
     head_g = (f'<g transform="rotate({pose.head_tilt:.1f} {HX:.1f} {HY + 40:.1f})">' + "".join(head) + "</g>")
 
