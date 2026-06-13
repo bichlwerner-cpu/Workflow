@@ -382,5 +382,36 @@ def mascot_gen_set(
     console.print(f"[green]✓[/green] {len(files)} Bilder -> {out}")
 
 
+@mascot_app.command("talk")
+def mascot_talk(
+    text_path: Annotated[Path, typer.Argument(help="Plain-Text-Skript-Datei.")],
+    pose: Annotated[str, typer.Option(help="Sprech-Pose, z.B. explain, idle, point_up.")] = "explain",
+    expression: Annotated[str, typer.Option(help="Augen/Brauen-Basis (Mund kommt vom Lip-Sync).")] = "neutral",
+    captions: Annotated[bool, typer.Option("--captions/--no-captions", help="Word-Captions einbrennen.")] = True,
+    language: Annotated[str, typer.Option(help="Sprachcode für Whisper.")] = "de",
+    out: Annotated[Path, typer.Option(help="Ziel-MP4.")] = Path("out/talking_mascot.mp4"),
+) -> None:
+    """Lip-synctes Talking-Mascot-Video: Skript → Voiceover → Mund-Sync → MP4."""
+    from .character import EXPRESSIONS, POSES
+    from .pipeline import run_talking_mascot
+
+    cfg = Config.load()
+    if pose not in POSES:
+        raise typer.BadParameter(f"Pose '{pose}' unbekannt. `mascot list` zeigt alle.")
+    if expression not in EXPRESSIONS:
+        raise typer.BadParameter(f"Ausdruck '{expression}' unbekannt. `mascot list` zeigt alle.")
+    console.print(
+        f"[bold]TTS:[/bold] {cfg.tts_provider}  [bold]Pose:[/bold] {pose}  "
+        f"[bold]Brand:[/bold] {cfg.mascot_palette}+{cfg.mascot_accessory or 'none'}"
+    )
+    with console.status("Voiceover → Whisper → Lip-Sync → Render..."):
+        res = run_talking_mascot(
+            cfg, text_path, pose=pose, base_expr=expression,
+            language=language, captions=captions, out=out,
+        )
+    console.print(f"[green]✓[/green] Video    -> {res.video_path}")
+    console.print(f"[green]✓[/green] Timeline -> {cfg.output_dir / 'lipsync.json'} [dim](für Editor)[/dim]")
+
+
 if __name__ == "__main__":
     app()
