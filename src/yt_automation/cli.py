@@ -261,6 +261,15 @@ def mascot_list() -> None:
     console.print(table)
 
 
+def _apply_brand(cfg: Config) -> Optional[str]:
+    """Set the active palette from config and return the accessory (or None)."""
+    from .character import PALETTES, use_palette
+
+    if cfg.mascot_palette in PALETTES:
+        use_palette(cfg.mascot_palette)
+    return cfg.mascot_accessory or None
+
+
 @mascot_app.command("sheet")
 def mascot_sheet(
     out: Annotated[Path, typer.Option(help="Ziel-PNG.")] = Path("out/mascot/contact_sheet.png"),
@@ -269,8 +278,10 @@ def mascot_sheet(
     """Kontaktblatt aller Posen + Ausdrücke als ein PNG."""
     from .character import contact_sheet
 
+    cfg = Config.load()
+    accessory = _apply_brand(cfg)
     with console.status("Rendere Kontaktblatt..."):
-        contact_sheet(out, cols=cols)
+        contact_sheet(out, cols=cols, accessory=accessory)
     console.print(f"[green]✓[/green] {out}")
 
 
@@ -284,9 +295,12 @@ def mascot_export(
     """Transparente PNGs aller Posen/Ausdrücke/Visemes für den Editor exportieren."""
     from .character import export_library
 
+    cfg = Config.load()
+    accessory = _apply_brand(cfg)
     with console.status("Exportiere Bilder-Bibliothek..."):
-        files = export_library(out, width=width, full=full, svg_too=svg)
-    console.print(f"[green]✓[/green] {len(files)} Bilder -> {out}")
+        files = export_library(out, width=width, full=full, svg_too=svg, accessory=accessory)
+    console.print(f"[green]✓[/green] {len(files)} Bilder -> {out}  "
+                  f"[dim]({cfg.mascot_palette}{' + ' + cfg.mascot_accessory if accessory else ''})[/dim]")
     console.print("[dim]Transparent, hochauflösend. Für Editor: poses/, expressions/, visemes/[/dim]")
 
 
@@ -301,13 +315,71 @@ def mascot_pose(
     """Eine einzelne Pose+Ausdruck als PNG rendern."""
     from .character import EXPRESSIONS, POSES, build_svg, rasterize
 
+    cfg = Config.load()
+    accessory = _apply_brand(cfg)
     if pose not in POSES:
         raise typer.BadParameter(f"Pose '{pose}' unbekannt. `mascot list` zeigt alle.")
     if expression not in EXPRESSIONS:
         raise typer.BadParameter(f"Ausdruck '{expression}' unbekannt. `mascot list` zeigt alle.")
-    svg = build_svg(POSES[pose], EXPRESSIONS[expression], bg=background)
+    svg = build_svg(POSES[pose], EXPRESSIONS[expression], bg=background, accessory=accessory)
     rasterize(svg, out, width=width, transparent=background is None)
     console.print(f"[green]✓[/green] {out}")
+
+
+def _render_mascot_ref(cfg: Config, pose_name: str) -> Path:
+    """Render a vector mascot pose to a PNG to use as a Gemini reference image."""
+    from .character import EXPRESSIONS, POSES, _POSE_FACE, build_svg, rasterize
+
+    accessory = _apply_brand(cfg)
+    if pose_name not in POSES:
+        raise typer.BadParameter(f"Pose '{pose_name}' unbekannt. `mascot list` zeigt alle.")
+    expr = EXPRESSIONS[_POSE_FACE.get(pose_name, "neutral")]
+    ref = cfg.output_dir / "figure" / "_ref.png"
+    rasterize(build_svg(POSES[pose_name], expr, bg="#FFFFFF", accessory=accessory),
+              ref, width=900, transparent=False)
+    return ref
+
+
+@mascot_app.command("gen")
+def mascot_gen(
+    prompt: Annotated[str, typer.Argument(help="Was soll die Figur tun? (Aktion/Szene)")],
+    ref: Annotated[Optional[list[Path]], typer.Option("--ref", help="Referenzbild(er) der Figur (mehrfach möglich).")] = None,
+    from_mascot: Annotated[Optional[str], typer.Option("--from-mascot", help="Vektor-Pose als Referenz nutzen, z.B. 'idle'.")] = None,
+    out: Annotated[Path, typer.Option(help="Ziel-PNG.")] = Path("out/figure/gen.png"),
+) -> None:
+    """Ein konsistentes Bild der Figur via Gemini (Nano Banana) erzeugen."""
+    from .imagegen import build_prompt, generate_figure
+
+    cfg = Config.load()
+    refs = list(ref or [])
+    if from_mascot:
+        refs.append(_render_mascot_ref(cfg, from_mascot))
+    full = build_prompt(prompt) if refs else prompt
+    with console.status(f"Gemini {cfg.gemini_image_model}..."):
+        generate_figure(cfg, full, out, references=refs or None)
+    console.print(f"[green]✓[/green] {out}")
+
+
+@mascot_app.command("gen-set")
+def mascot_gen_set(
+    ref: Annotated[Optional[list[Path]], typer.Option("--ref", help="Referenzbild(er) der Figur.")] = None,
+    from_mascot: Annotated[Optional[str], typer.Option("--from-mascot", help="Vektor-Pose als Referenz, z.B. 'idle'.")] = None,
+    out: Annotated[Path, typer.Option(help="Ziel-Ordner.")] = Path("out/figure"),
+    background: Annotated[str, typer.Option(help="Hintergrund-Beschreibung für den Prompt.")] = "plain flat",
+) -> None:
+    """Komplettes konsistentes Posen-Set aus einer Referenz-Figur erzeugen."""
+    from .imagegen import POSE_PROMPTS, generate_pose_set
+
+    cfg = Config.load()
+    refs = list(ref or [])
+    if from_mascot:
+        refs.append(_render_mascot_ref(cfg, from_mascot))
+    if not refs:
+        raise typer.BadParameter("Mindestens --ref <bild> oder --from-mascot <pose> nötig.")
+    console.print(f"[bold]{len(POSE_PROMPTS)} Posen[/bold] via {cfg.gemini_image_model}")
+    with console.status("Generiere Set (kostet pro Bild)..."):
+        files = generate_pose_set(cfg, refs, out, background=background)
+    console.print(f"[green]✓[/green] {len(files)} Bilder -> {out}")
 
 
 if __name__ == "__main__":

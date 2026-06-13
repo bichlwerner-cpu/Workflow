@@ -163,6 +163,19 @@ def _hand(center, style, ang):
                      f'stroke="{OUTLINE}" stroke-width="{ARM_W * 0.55 + OUTLINE_W * 2:.1f}" stroke-linecap="round"/>')
         parts.append(f'<line x1="{cx:.1f}" y1="{cy:.1f}" x2="{tip[0]:.1f}" y2="{tip[1]:.1f}" '
                      f'stroke="{BODY}" stroke-width="{ARM_W * 0.55:.1f}" stroke-linecap="round"/>')
+    elif style in ("one", "two", "three"):
+        n = {"one": 1, "two": 2, "three": 3}[style]
+        spread = 19
+        base = 180 - (n - 1) / 2 * spread  # fingers fan around straight up
+        fw = ARM_W * 0.5
+        for k in range(n):
+            tip = _pt(center, base + k * spread, HAND_R + 30)
+            parts.append(f'<line x1="{cx:.1f}" y1="{cy:.1f}" x2="{tip[0]:.1f}" y2="{tip[1]:.1f}" '
+                         f'stroke="{OUTLINE}" stroke-width="{fw + OUTLINE_W * 2:.1f}" stroke-linecap="round"/>')
+        for k in range(n):
+            tip = _pt(center, base + k * spread, HAND_R + 30)
+            parts.append(f'<line x1="{cx:.1f}" y1="{cy:.1f}" x2="{tip[0]:.1f}" y2="{tip[1]:.1f}" '
+                         f'stroke="{BODY}" stroke-width="{fw:.1f}" stroke-linecap="round"/>')
     return "".join(parts)
 
 
@@ -390,13 +403,21 @@ POSES: dict[str, Pose] = {
     "point_right": Pose("point_right", Arm(-14, -6), Arm(96, 0, "point"), Leg(-7, 0), Leg(7, 0)),
     "point_left":  Pose("point_left", Arm(-96, 0, "point"), Arm(14, 6), Leg(-7, 0), Leg(7, 0)),
     "thumbs_up":   Pose("thumbs_up", Arm(-14, -6), Arm(62, -10, "thumb"), Leg(-7, 0), Leg(7, 0)),
-    "thinking":    Pose("thinking", Arm(-14, -6), Arm(118, -122, "mitten"), Leg(-7, 0), Leg(7, 0), head_tilt=6),
+    "thinking":    Pose("thinking", Arm(-14, -6), Arm(158, -78, "mitten"), Leg(-7, 0), Leg(7, 0), head_tilt=6),
     "hands_hips":  Pose("hands_hips", Arm(60, 30), Arm(-60, -30), Leg(-7, 0), Leg(7, 0)),
     "shrug":       Pose("shrug", Arm(-72, -40, "open"), Arm(72, 40, "open"), Leg(-7, 0), Leg(7, 0)),
     "celebrate":   Pose("celebrate", Arm(-150, 12, "open"), Arm(150, -12, "open"), Leg(-9, 0), Leg(9, 0), bob=-8),
     "welcome":     Pose("welcome", Arm(-56, -16, "open"), Arm(56, 16, "open"), Leg(-7, 0), Leg(7, 0)),
     "run":         Pose("run", Arm(44, -34), Arm(-30, -10), Leg(-32, 22), Leg(38, -34), lean=8),
+    "walk":        Pose("walk", Arm(22, -12), Arm(-18, -8), Leg(-20, 10), Leg(24, -18), lean=3),
     "facepalm":    Pose("facepalm", Arm(-14, -6), Arm(150, -112, "open"), Leg(-7, 0), Leg(7, 0), head_tilt=-4),
+    "explain":     Pose("explain", Arm(-44, -30, "open"), Arm(44, 30, "open"), Leg(-7, 0), Leg(7, 0)),
+    "hand_on_heart":Pose("hand_on_heart", Arm(60, 120, "mitten"), Arm(14, 6), Leg(-7, 0), Leg(7, 0), head_tilt=3),
+    "ponder":      Pose("ponder", Arm(-158, 78, "mitten"), Arm(14, 6), Leg(-7, 0), Leg(7, 0), head_tilt=-6),
+    "mind_blown":  Pose("mind_blown", Arm(-132, -30, "open"), Arm(132, 30, "open"), Leg(-8, 0), Leg(8, 0)),
+    "count_one":   Pose("count_one", Arm(-14, -6), Arm(20, -124, "one"), Leg(-7, 0), Leg(7, 0)),
+    "count_two":   Pose("count_two", Arm(-14, -6), Arm(20, -124, "two"), Leg(-7, 0), Leg(7, 0)),
+    "count_three": Pose("count_three", Arm(-14, -6), Arm(20, -124, "three"), Leg(-7, 0), Leg(7, 0)),
 }
 
 EXPRESSIONS: dict[str, Expression] = {
@@ -410,6 +431,10 @@ EXPRESSIONS: dict[str, Expression] = {
     "wink":      Expression("wink", "wink_r", (0, 0), 0, 0, "smile"),
     "cool":      Expression("cool", "half", (0, 0), 0, 0, "smile"),
     "dead":      Expression("dead", "x", (0, 0), 0, 0, "neutral", cheeks=False),
+    "curious":   Expression("curious", "wide", (0, 0), -10, -2, "smile"),
+    "empathetic":Expression("empathetic", "open", (0, 0.15), -8, 0, "smile"),
+    "aha":       Expression("aha", "wide", (0, 0), -14, -3, "big_smile"),
+    "confused":  Expression("confused", "open", (0.4, -0.1), 6, 0, "o"),
 }
 
 # Mouth shapes for lip-sync. Map these onto a neutral-eyed face per frame.
@@ -423,16 +448,16 @@ def viseme_expression(viseme: str, base: Expression | None = None) -> Expression
 
 
 def contact_sheet(out_path: Path, *, cols: int = 4, cell_w: int = 300,
-                  pad: int = 16, label: bool = True) -> Path:
-    """Render every pose (neutral face) + every expression (idle body) into one PNG grid."""
+                  pad: int = 16, label: bool = True, accessory: str | None = None) -> Path:
+    """Render every pose (fitting face) + every expression (idle body) into one PNG grid."""
     from PIL import Image, ImageDraw, ImageFont
 
     items: list[tuple[str, str]] = []  # (svg, caption)
     for name, pose in POSES.items():
-        expr = EXPRESSIONS["happy"] if name in ("wave", "celebrate", "thumbs_up") else EXPRESSIONS["neutral"]
-        items.append((build_svg(pose, expr), f"pose: {name}"))
+        expr = EXPRESSIONS[_POSE_FACE.get(name, "neutral")]
+        items.append((build_svg(pose, expr, accessory=accessory), f"pose: {name}"))
     for name, expr in EXPRESSIONS.items():
-        items.append((build_svg(POSES["idle"], expr), f"face: {name}"))
+        items.append((build_svg(POSES["idle"], expr, accessory=accessory), f"face: {name}"))
 
     cell_h = int(cell_w * CH / CW)
     cap_h = 30 if label else 0
@@ -469,11 +494,14 @@ def contact_sheet(out_path: Path, *, cols: int = 4, cell_w: int = 300,
 _POSE_FACE = {
     "wave": "happy", "celebrate": "happy", "thumbs_up": "happy",
     "welcome": "happy", "facepalm": "sad", "thinking": "thinking",
+    "walk": "happy", "explain": "neutral", "hand_on_heart": "empathetic",
+    "ponder": "thinking", "mind_blown": "surprised", "count_one": "neutral",
+    "count_two": "neutral", "count_three": "neutral",
 }
 
 
 def export_library(out_dir: Path, *, width: int = 1200, full: bool = False,
-                   svg_too: bool = True) -> list[Path]:
+                   svg_too: bool = True, accessory: str | None = None) -> list[Path]:
     """Write the full transparent-PNG image library an editor can composite.
 
     Layout:
@@ -496,17 +524,17 @@ def export_library(out_dir: Path, *, width: int = 1200, full: bool = False,
 
     for name, pose in POSES.items():
         expr = EXPRESSIONS[_POSE_FACE.get(name, "neutral")]
-        emit(build_svg(pose, expr), f"poses/{name}")
+        emit(build_svg(pose, expr, accessory=accessory), f"poses/{name}")
 
     for name, expr in EXPRESSIONS.items():
-        emit(build_svg(POSES["idle"], expr), f"expressions/{name}")
+        emit(build_svg(POSES["idle"], expr, accessory=accessory), f"expressions/{name}")
 
     for viseme in VISEMES:
-        emit(build_svg(POSES["idle"], viseme_expression(viseme)), f"visemes/{viseme}")
+        emit(build_svg(POSES["idle"], viseme_expression(viseme), accessory=accessory), f"visemes/{viseme}")
 
     if full:
         for pname, pose in POSES.items():
             for ename, expr in EXPRESSIONS.items():
-                emit(build_svg(pose, expr), f"full/{pname}__{ename}")
+                emit(build_svg(pose, expr, accessory=accessory), f"full/{pname}__{ename}")
 
     return written

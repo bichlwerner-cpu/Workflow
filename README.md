@@ -54,14 +54,15 @@ yt-automation mascot export --out out/mascot --full      # ganze Pose×Ausdruck-
 yt-automation mascot pose wave happy --out out/mascot/wave.png
 ```
 
-Export-Struktur:
+Export-Struktur (21 Posen, 14 Ausdrücke, 7 Visemes):
 
 ```
 out/mascot/
-├── poses/        idle, wave, point_up/right/left, thumbs_up, thinking,
-│                 hands_hips, shrug, celebrate, welcome, run, facepalm
-├── expressions/  neutral, happy, talk, surprised, sad, angry, thinking,
-│                 wink, cool, dead
+├── poses/        idle, wave, point_up/right/left, thumbs_up, thinking, ponder,
+│                 hands_hips, shrug, celebrate, welcome, run, walk, facepalm,
+│                 explain, hand_on_heart, mind_blown, count_one/two/three
+├── expressions/  neutral, happy, talk, surprised, sad, angry, thinking, wink,
+│                 cool, dead, curious, empathetic, aha, confused
 ├── visemes/      rest, mbp, talk_a/e/i/o/u   (Mundformen für Lip-Sync)
 └── svg/          editierbare Vektor-Quellen aller Bilder
 ```
@@ -70,8 +71,34 @@ Alle PNGs sind transparent und hochauflösend – direkt im Editor (After Effect
 Premiere, CapCut, DaVinci) auf Hintergründe komponierbar. Die `visemes/` sind die
 Mundformen, mit denen sich das Voiceover lippensynchron animieren lässt.
 
-**Re-Branding:** Farbe/Style an einer Stelle ändern – die `PALETTE`-Konstanten oben
-in `character.py` (`BODY`, `OUTLINE`, `CHEEK`, …). Alle Posen aktualisieren sich.
+**Brand/Re-Skin:** Farbe + Accessoire kommen aus `.env`:
+
+```
+MASCOT_PALETTE=purple     # sunny | teal | blue | purple | coral
+MASCOT_ACCESSORY=glasses  # glasses  (leer = keins)
+```
+
+Alle Posen aktualisieren sich automatisch. Neue Paletten/Teile: `PALETTES` bzw.
+`character.py`.
+
+### Variante B: Gemini-Bildgenerierung (Nano Banana)
+
+Statt des Vektor-Stils kannst du dieselbe Figur **von Gemini** (Nano Banana /
+Nano Banana Pro) zeichnen lassen – reicher illustriert, mit Referenz-Bild für
+Charakter-Konsistenz. Nutzt denselben `GEMINI_API_KEY` wie das Skript.
+
+```bash
+# Ein Bild: gleiche Figur, neue Aktion (Referenz = eigenes Bild ODER Vektor-Pose)
+yt-automation mascot gen "explaining a concept, both hands open" --ref figur.png
+yt-automation mascot gen "waving hello" --from-mascot idle
+
+# Ganzes konsistentes Posen-Set aus einer Referenz
+yt-automation mascot gen-set --ref figur.png --out out/figure
+```
+
+Vektor = pixelgenau identisch, gratis, flacher Stil. Nano Banana = reicher Look,
+nahezu konsistent (minimaler Drift möglich), kostet pro Bild. Tipp: den
+Vektor-Mascot als `--ref`/`--from-mascot` füttern, um das Design zu fixieren.
 
 ## Skript-Datei-Format
 

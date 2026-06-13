@@ -28,9 +28,14 @@ class Config:
     anthropic_effort: str
     gemini_api_key: str  # may be empty
     gemini_model: str
+    gemini_image_model: str  # Nano Banana (Pro) image model
 
     # Whisper
     whisper_model: str
+
+    # Mascot brand
+    mascot_palette: str
+    mascot_accessory: str  # "" = none
 
     # Paths
     output_dir: Path
@@ -78,7 +83,12 @@ class Config:
                 or os.environ.get("GOOGLE_API_KEY", "")
             ).strip(),
             gemini_model=os.environ.get("GEMINI_MODEL", "gemini-2.5-flash"),
+            gemini_image_model=os.environ.get(
+                "GEMINI_IMAGE_MODEL", "gemini-3-pro-image-preview"
+            ),
             whisper_model=os.environ.get("WHISPER_MODEL", "base"),
+            mascot_palette=os.environ.get("MASCOT_PALETTE", "purple").strip().lower(),
+            mascot_accessory=os.environ.get("MASCOT_ACCESSORY", "glasses").strip().lower(),
             output_dir=out,
             music_dir=music_dir,
             footage_dir=footage_dir,
@@ -95,8 +105,9 @@ class Config:
     def require_gemini(self) -> None:
         if not self.gemini_api_key:
             raise RuntimeError(
-                "SCRIPT_PROVIDER=gemini but GEMINI_API_KEY is empty. "
-                "Set GEMINI_API_KEY (or GOOGLE_API_KEY) in .env."
+                "GEMINI_API_KEY is empty. Set GEMINI_API_KEY (or GOOGLE_API_KEY) "
+                "as an environment secret / in .env. The same key powers both the "
+                "Gemini script generator and the Nano Banana image generator."
             )
 
     def require_script_llm(self) -> None:
