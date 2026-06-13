@@ -60,35 +60,40 @@ def main():
             chapters=[ChapterPlan(title="The Test Chapter", goal="g", open_loop="o", beats=["b"])],
         ),
         hook=[Scene(background="mountain", caption="The 7 Second Rule", lines=[
-            Line(text="You finally decide to chase the goal you postponed for years.",
+            Line(text="You finally decide to chase the goal.",
                  actors=[Actor(character=c1, pose="pointing", emotion="excited", action="enter_left")],
-                 prop="none", camera="normal"),
-            Line(text="And right before the summit, your own brain hits the brakes.",
-                 actors=[Actor(character=c1, pose="sad", emotion="shocked", action="collapse")],
-                 prop="none", camera="shake"),
+                 prop="none", camera="normal", shot="wide"),
+            Line(text="But your own brain hits the brakes.",
+                 actors=[Actor(character=c1, pose="shocked", emotion="shocked", action="none")],
+                 prop="exclamation", camera="punch", shot="closeup"),
+            Line(text="And right before the summit, you collapse.",
+                 actors=[Actor(character=c1, pose="sad", emotion="sad", action="collapse")],
+                 prop="none", camera="shake", shot="wide"),
         ])],
         chapters=[Chapter(title="The Test Chapter", scenes=[
             Scene(background="path_split", caption=None, lines=[
-                Line(text="Every morning you stand at the same fork without noticing it.",
-                     actors=[Actor(character=c1, pose="thinking", emotion="confused", action="approach")],
-                     prop="question_mark", camera="normal"),
+                Line(text="Every morning you stand at the same fork.",
+                     actors=[Actor(character=c1, pose="thinking", emotion="confused", action="none")],
+                     prop="question_mark", camera="zoom_in", shot="closeup"),
+                Line(text="You hesitate, then walk the easy way again.",
+                     actors=[Actor(character=c1, pose="explaining", emotion="neutral", action="walk_across")],
+                     prop="none", camera="normal", shot="wide"),
             ]),
             Scene(background="wall", caption="Study: 1971", lines=[
-                Line(text="Researchers watched two groups slam into the exact same wall.",
-                     actors=[Actor(character=c1, pose="explaining", emotion="neutral", action="walk_across"),
+                Line(text="Two groups slammed into the exact same wall.",
+                     actors=[Actor(character=c1, pose="explaining", emotion="neutral", action="approach"),
                              Actor(character=c3, pose="arms_crossed", emotion="smug", action="none")],
-                     prop="none", camera="zoom_in"),
+                     prop="none", camera="zoom_in", shot="wide"),
             ]),
             Scene(background="graph", caption="93%", lines=[
-                Line(text="Ninety-three percent quit at the identical point on this curve.",
-                     actors=[], prop="arrow_down", camera="normal"),
+                Line(text="Ninety-three percent quit at the identical point.",
+                     actors=[], prop="arrow_down", camera="normal", shot="insert"),
             ]),
         ])],
         outro=[Scene(background="gradient_warm", caption=None, lines=[
-            Line(text="Subscribe before your brain talks you out of it again.",
-                 actors=[Actor(character=c1, pose="celebrating", emotion="excited", action="jump"),
-                         Actor(character=c2, pose="presenting", emotion="happy", action="enter_right")],
-                 prop="star", camera="normal"),
+            Line(text="Subscribe before your brain talks you out of it.",
+                 actors=[Actor(character=c1, pose="celebrating", emotion="excited", action="jump")],
+                 prop="star", camera="normal", shot="wide"),
         ])],
     )
 
@@ -115,7 +120,7 @@ def main():
             line_id=f"c{ch_idx + 1:02d}_s{si:03d}_l{li:02d}", section="t",
             chapter_index=ch_idx, scene_index=si, text=line.text,
             actors=[a.model_dump() for a in line.actors],
-            prop=line.prop, camera=line.camera, wav_path=str(wav),
+            prop=line.prop, camera=line.camera, shot=line.shot, wav_path=str(wav),
             duration=dur, chars=chars, char_starts=starts, char_ends=ends,
         ))
 
@@ -132,16 +137,28 @@ def main():
 
     renderer = FrameRenderer(settings, timeline)
     samples = {
-        "hook_enter": timeline.scenes[0].lines[0].start + 0.35,
-        "hook_collapse": timeline.scenes[0].lines[1].start + 1.0,
-        "path_split": timeline.scenes[1].lines[0].start + 0.6,
+        "hook_wide_enter": timeline.scenes[0].lines[0].start + 0.35,
+        "hook_closeup": timeline.scenes[0].lines[1].start + 0.5,
+        "hook_collapse": timeline.scenes[0].lines[2].start + 1.0,
+        "closeup_fork": timeline.scenes[1].lines[0].start + 0.5,
+        "wide_walk": timeline.scenes[1].lines[1].start + 0.8,
         "wall_two_actors": timeline.scenes[2].lines[0].start + 1.0,
-        "diagram_shot": timeline.scenes[3].lines[0].start + 0.8,
+        "insert_diagram": timeline.scenes[3].lines[0].start + 0.8,
         "outro_jump": timeline.scenes[4].lines[0].start + 0.4,
     }
     for name, t in samples.items():
         renderer.frame_at(t).save(outdir / f"frame_{name}.png")
     print(f"renderer OK: {len(samples)} sample frames written")
+
+    # Audio generators (pure-Python; no ffmpeg needed).
+    from pipeline.audio_gen import _make_music_loop, synth_sfx_track
+    synth_sfx_track(settings, timeline, outdir / "sfx.wav", log=lambda *_: None)
+    import wave as _wave
+    loop = _make_music_loop(settings.sample_rate, loop_len=8.0)
+    with _wave.open(str(outdir / "bgm.wav"), "wb") as w:
+        w.setnchannels(1); w.setsampwidth(2); w.setframerate(settings.sample_rate)
+        w.writeframes(loop.tobytes())
+    print("audio OK: sfx.wav + bgm.wav written")
 
     render_thumbnail(settings, script, outdir / "thumbnail.png")
     print("thumbnail OK")

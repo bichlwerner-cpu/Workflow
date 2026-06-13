@@ -1,9 +1,15 @@
 """Frame renderer: composes every video frame from the timeline.
 
+Each narration beat is a *shot* (see pipeline/shots.py): a framed composition —
+wide (full-body action on a metaphor stage), medium (waist-up), close-up (big
+lip-synced head) or insert (a single icon). Consecutive beats hard-cut between
+shots, each with its own zoom move plus a snap "punch" on the cut, so the
+screen never sits still.
+
 Frames are drawn at `supersample`x resolution for clean anti-aliased lines,
-then a camera transform (slow zoom, emphasis pulses, shake) crops + scales
-down to the output size in a single resize. Frames are yielded as raw RGB
-bytes and piped straight into ffmpeg — no intermediate image files.
+then a camera transform (zoom, punch, shake, drift) crops + scales down to the
+output size in a single resize. Frames are yielded as raw RGB bytes piped
+straight into ffmpeg — no intermediate image files.
 """
 
 from __future__ import annotations
@@ -14,6 +20,8 @@ from typing import Dict, Iterator, List, Optional, Tuple
 from PIL import Image, ImageDraw
 
 from .config import Settings
+from .shots import (SHOT_CLOSEUP, SHOT_INSERT, SHOT_MEDIUM, SHOT_WIDE,
+                    resolve_shots)
 from .stickman import (COLLAPSED, animate_pose, draw_character, is_blinking,
                        lerp_pose)
 from .timeline import TimedLine, TimedScene, Timeline
@@ -23,8 +31,16 @@ INK_DARK = (27, 27, 31)
 INK_LIGHT = (245, 241, 232)
 
 CARD_SECONDS = 1.7
-PROP_POP_SECONDS = 0.35
-SHAKE_SECONDS = 0.7
+PROP_POP_SECONDS = 0.30
+SHAKE_SECONDS = 0.55
+PUNCH_SECONDS = 0.12        # length of the snap when a new shot cuts in
+
+# Per-shot framing: (character scale / canvas-height, ground anchor / height).
+SHOT_FRAMING = {
+    SHOT_WIDE:    (0.50, 0.88),
+    SHOT_MEDIUM:  (0.92, 1.30),
+    SHOT_CLOSEUP: (2.00, 2.20),
+}
 
 
 def _seeded(seq: int) -> float:
@@ -49,25 +65,43 @@ class FrameRenderer:
         self.watermark = str(settings.get("style", "watermark", default="") or "")
 
         self._bg_cache: Dict[str, Tuple[Image.Image, RGB, bool]] = {}
+        self._closeup_cache: Dict[int, Image.Image] = {}
         self._vignette: Optional[Image.Image] = None
+        self._dim: Optional[Image.Image] = None
         self._char_phase = {key: 2 * math.pi * _seeded(i + 1)
                             for i, key in enumerate(sorted(settings.characters))}
+
+        # Resolve every beat to a concrete shot + give it a stable index so the
+        # camera can alternate push/pull and the cut rhythm stays varied.
+        self.shots: Dict[str, str] = resolve_shots(timeline)
+        self._line_index: Dict[str, int] = {}
+        k = 0
+        for scene in timeline.scenes:
+            for tl in scene.lines:
+                self._line_index[tl.voiced.line_id] = k
+                k += 1
+
+    def _shot_for(self, tl: TimedLine) -> str:
+        return self.shots.get(tl.voiced.line_id, SHOT_WIDE)
 
     # ----------------------------------------------------------- backgrounds
     def _vignette_overlay(self) -> Image.Image:
         if self._vignette is None:
             small = Image.new("L", (160, 90), 0)
-            d = ImageDraw.Draw(small)
-            cx, cy = 80, 45
             for y in range(90):
                 for x in range(160):
-                    dist = math.hypot((x - cx) / 80, (y - cy) / 45)
+                    dist = math.hypot((x - 80) / 80, (y - 45) / 45)
                     small.putpixel((x, y), int(70 * max(0.0, dist - 0.55) ** 1.6))
             mask = small.resize((self.cw, self.ch), Image.BILINEAR)
             overlay = Image.new("RGBA", (self.cw, self.ch), (10, 10, 14, 0))
             overlay.putalpha(mask)
             self._vignette = overlay
         return self._vignette
+
+    def _dim_overlay(self) -> Image.Image:
+        if self._dim is None:
+            self._dim = Image.new("RGBA", (self.cw, self.ch), (8, 8, 12, 120))
+        return self._dim
 
     def _vertical_gradient(self, top: RGB, bottom: RGB) -> Image.Image:
         strip = Image.new("RGB", (1, 256))
@@ -102,8 +136,8 @@ class FrameRenderer:
             d = ImageDraw.Draw(img)
             spot_w, spot_h = cw * 0.62, ch * 0.5
             cx, sy = cw / 2, ch * 0.88
-            for k in range(5, 0, -1):
-                u = k / 5
+            for kk in range(5, 0, -1):
+                u = kk / 5
                 d.ellipse([cx - spot_w * u / 2, sy - spot_h * u / 2,
                            cx + spot_w * u / 2, sy + spot_h * u / 2],
                           fill=mix(base, (96, 96, 120), 1 - u))
@@ -155,8 +189,8 @@ class FrameRenderer:
                     d.line([(cw * 0.5, ch * 0.92), (tx, ch * 0.50)], fill=soft, width=int(ch * 0.045))
                 post_x, post_y = cw * 0.5, ch * 0.50
                 d.line([(post_x, post_y), (post_x, post_y - ch * 0.16)], fill=ink, width=lw * 2)
-                for k, side in enumerate((-1, 1)):
-                    by = post_y - ch * (0.15 - 0.055 * k)
+                for kk, side in enumerate((-1, 1)):
+                    by = post_y - ch * (0.15 - 0.055 * kk)
                     d.polygon([(post_x, by - ch * 0.022), (post_x, by + ch * 0.022),
                                (post_x + side * cw * 0.085, by + ch * 0.022),
                                (post_x + side * cw * 0.105, by),
@@ -187,6 +221,28 @@ class FrameRenderer:
         is_dark = luminance(base) < 0.45
         self._bg_cache[preset] = (img, base, is_dark)
         return self._bg_cache[preset]
+
+    def _closeup_backdrop(self, palette: int) -> Image.Image:
+        """Deliberate 'talking-head' backdrop: dark gradient + glow behind head."""
+        if palette in self._closeup_cache:
+            return self._closeup_cache[palette]
+        cw, ch = self.cw, self.ch
+        tops = [(44, 34, 30), (26, 34, 48), (30, 26, 40)]
+        bots = [(18, 14, 13), (11, 15, 24), (12, 11, 18)]
+        top = mix(tops[palette % 3], self.accent, 0.05)
+        bot = bots[palette % 3]
+        img = self._vertical_gradient(top, bot)
+        d = ImageDraw.Draw(img)
+        gx, gy = cw * 0.5, ch * 0.42
+        glow = mix(top, mix(self.accent, (255, 255, 255), 0.4), 0.5)
+        for kk in range(26, 0, -1):
+            u = kk / 26
+            r = ch * 0.62 * u
+            d.ellipse([gx - r, gy - r, gx + r, gy + r],
+                      fill=mix(bot, glow, (1 - u) * 0.30))
+        img.paste(self._vignette_overlay(), (0, 0), self._vignette_overlay())
+        self._closeup_cache[palette] = img
+        return img
 
     # --------------------------------------------------------------- staging
     def _ink_for(self, color: RGB, base: RGB) -> RGB:
@@ -249,28 +305,39 @@ class FrameRenderer:
         return x, moving, facing, jump_y, collapse_u, visible
 
     def _draw_staging(self, draw: ImageDraw.ImageDraw, t: float, base: RGB,
-                      is_dark: bool, tl: TimedLine) -> None:
-        """Render the current beat: 0-2 silent actors performing + their prop."""
-        actors = tl.voiced.actors[:2]
+                      is_dark: bool, tl: TimedLine, shot: str, scene: TimedScene) -> None:
+        """Render the current beat for the given shot framing."""
+        actors = list(tl.voiced.actors)
         ink = INK_LIGHT if is_dark else INK_DARK
         t_line = max(0.0, t - tl.start)
 
-        if not actors:
-            if tl.voiced.prop != "none":  # diagram shot: big centered prop
-                self._draw_prop(draw, tl.voiced.prop, (self.cw * 0.5, self.ch * 0.44),
-                                self.ch * 0.20, ink, t_line)
+        if shot == SHOT_INSERT or not actors:
+            if tl.voiced.prop != "none":
+                self._draw_prop(draw, tl.voiced.prop, (self.cw * 0.5, self.ch * 0.46),
+                                self.ch * 0.26, ink, t_line)
             return
+
+        # Close-ups / mediums are single-character by design (no stray extras).
+        if shot in (SHOT_CLOSEUP, SHOT_MEDIUM):
+            actors = actors[:1]
+        else:
+            actors = actors[:2]
 
         dur = max(0.3, tl.end - tl.start)
         t_in = min(t_line, dur)
-        ground_y = self.ch * 0.84
-        scale = self.ch * (0.42 if len(actors) == 1 else 0.38)
+        scale_f, ground_f = SHOT_FRAMING.get(shot, SHOT_FRAMING[SHOT_WIDE])
+        scale = self.ch * scale_f
+        ground_y = self.ch * ground_f
+        lip_sync = shot in (SHOT_CLOSEUP, SHOT_MEDIUM)
+
         if len(actors) == 1:
-            # Keep a lone actor clear of center-stage background elements.
-            slots = [{"wall": 0.30, "pit": 0.30, "path_split": 0.36,
-                      "mountain": 0.32}.get(self.timeline.scene_at(t).background, 0.5)]
+            if shot == SHOT_WIDE:
+                slots = [{"wall": 0.32, "pit": 0.32, "path_split": 0.36,
+                          "mountain": 0.34}.get(scene.background, 0.5)]
+            else:
+                slots = [0.5]
         else:
-            slots = [0.33, 0.67]
+            slots = [0.32, 0.68]
         prop_anchor: Optional[Tuple[float, float]] = None
 
         for i, a in enumerate(actors):
@@ -284,24 +351,31 @@ class FrameRenderer:
                 continue
             phase = self._char_phase.get(cfg.key, 0.0)
             pose_name = "walking" if moving else a.get("pose", "idle")
-            pose = animate_pose(pose_name, t, phase, speaking=False)
+            pose = animate_pose(pose_name, t, phase, speaking=lip_sync and i == 0)
             pose.y_offset += jump_y
             if collapse_u > 0:
                 pose = lerp_pose(pose, COLLAPSED, collapse_u)
 
+            mouth = lip_sync and i == 0 and tl.mouth_open(t)
             draw_character(
                 draw, (self.cw * x, ground_y), scale,
                 color=self._ink_for(hex_to_rgb(cfg.color), base), bg_fill=base,
-                pose=pose, emotion=a.get("emotion", "neutral"), mouth_open=False,
+                pose=pose, emotion=a.get("emotion", "neutral"), mouth_open=mouth,
                 blink=is_blinking(t, phase), facing=facing,
                 accessory=cfg.accessory, hair=cfg.hair, accent=self.accent,
+                shadow=(shot == SHOT_WIDE),
             )
             if i == 0:
-                prop_anchor = (self.cw * x + facing * scale * 0.55,
-                               ground_y - scale * 1.20)
+                if shot == SHOT_WIDE:
+                    prop_anchor = (self.cw * x + facing * scale * 0.55,
+                                   ground_y - scale * 1.20)
+                elif shot == SHOT_MEDIUM:
+                    prop_anchor = (self.cw * 0.78, self.ch * 0.28)
+                # close-up stays clean: the head is the whole frame
 
         if tl.voiced.prop != "none" and prop_anchor is not None:
-            self._draw_prop(draw, tl.voiced.prop, prop_anchor, scale * 0.30, ink, t_line)
+            psize = scale * (0.30 if shot == SHOT_WIDE else 0.13)
+            self._draw_prop(draw, tl.voiced.prop, prop_anchor, psize, ink, t_line)
 
     # ----------------------------------------------------------------- props
     def _draw_prop(self, draw: ImageDraw.ImageDraw, name: str, center, size: float,
@@ -331,8 +405,8 @@ class FrameRenderer:
             r = s * 0.42
             draw.ellipse([cx - r, cy - r, cx + r, cy + r], outline=a, width=fw)
             draw.rectangle([cx - r * 0.35, cy + r * 0.9, cx + r * 0.35, cy + r * 1.35], outline=a, width=fw)
-            for k in range(6):
-                ang = math.pi * (0.15 + 0.7 * k / 5) + math.pi  # rays over the top
+            for kk in range(6):
+                ang = math.pi * (0.15 + 0.7 * kk / 5) + math.pi
                 x1, y1 = cx + math.cos(ang) * r * 1.25, cy + math.sin(ang) * r * 1.25
                 x2, y2 = cx + math.cos(ang) * r * 1.65, cy + math.sin(ang) * r * 1.65
                 draw.line([(x1, y1), (x2, y2)], fill=a, width=fw)
@@ -347,23 +421,23 @@ class FrameRenderer:
             draw.line([(cx, cy), (cx, cy - r * 0.6)], fill=a, width=fw)
             draw.line([(cx, cy), (cx + r * 0.45, cy + r * 0.15)], fill=a, width=fw)
         elif name in ("arrow_up", "arrow_down"):
-            d = -1 if name == "arrow_up" else 1
+            dd = -1 if name == "arrow_up" else 1
             h, w2 = s * 0.55, s * 0.34
-            draw.polygon([(cx, cy + d * h), (cx - w2, cy + d * h * 0.1),
-                          (cx - w2 * 0.45, cy + d * h * 0.1), (cx - w2 * 0.45, cy - d * h * 0.8),
-                          (cx + w2 * 0.45, cy - d * h * 0.8), (cx + w2 * 0.45, cy + d * h * 0.1),
-                          (cx + w2, cy + d * h * 0.1)], fill=a)
+            draw.polygon([(cx, cy + dd * h), (cx - w2, cy + dd * h * 0.1),
+                          (cx - w2 * 0.45, cy + dd * h * 0.1), (cx - w2 * 0.45, cy - dd * h * 0.8),
+                          (cx + w2 * 0.45, cy - dd * h * 0.8), (cx + w2 * 0.45, cy + dd * h * 0.1),
+                          (cx + w2, cy + dd * h * 0.1)], fill=a)
         elif name == "star":
             pts = []
-            for k in range(10):
-                rr = s * (0.55 if k % 2 == 0 else 0.24)
-                ang = -math.pi / 2 + k * math.pi / 5
+            for kk in range(10):
+                rr = s * (0.55 if kk % 2 == 0 else 0.24)
+                ang = -math.pi / 2 + kk * math.pi / 5
                 pts.append((cx + math.cos(ang) * rr, cy + math.sin(ang) * rr))
             draw.polygon(pts, fill=a)
         elif name == "target":
-            for k, rr in enumerate((0.5, 0.34, 0.18)):
+            for kk, rr in enumerate((0.5, 0.34, 0.18)):
                 draw.ellipse([cx - s * rr, cy - s * rr, cx + s * rr, cy + s * rr],
-                             outline=a if k % 2 == 0 else ink, width=fw)
+                             outline=a if kk % 2 == 0 else ink, width=fw)
         elif name == "eye":
             w2, h2 = s * 0.55, s * 0.32
             draw.ellipse([cx - w2, cy - h2, cx + w2, cy + h2], outline=a, width=fw)
@@ -379,21 +453,25 @@ class FrameRenderer:
     def _draw_caption(self, img: Image.Image, text: str, is_dark: bool) -> None:
         overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
         d = ImageDraw.Draw(overlay)
-        font = load_font(self.font_path, int(self.ch * 0.046))
-        lines = wrap_text(d, text, font, int(self.cw * 0.7))
-        pad = int(self.ch * 0.018)
-        line_h = int(self.ch * 0.055)
+        font = load_font(self.font_path, int(self.ch * 0.058))
+        lines = wrap_text(d, text, font, int(self.cw * 0.74))
+        pad = int(self.ch * 0.020)
+        line_h = int(self.ch * 0.068)
         block_w = max(text_size(d, ln, font)[0] for ln in lines)
         x0 = (self.cw - block_w) / 2 - pad * 1.6
-        y0 = self.ch * 0.06
-        pill = (20, 20, 26, 200) if not is_dark else (245, 241, 232, 220)
-        ink = INK_LIGHT if not is_dark else INK_DARK
+        y0 = self.ch * 0.05
         d.rounded_rectangle(
             [x0, y0, x0 + block_w + pad * 3.2, y0 + len(lines) * line_h + pad * 2],
-            radius=int(self.ch * 0.02), fill=pill)
+            radius=int(self.ch * 0.018), fill=(14, 14, 20, 215))
+        # thin accent underline tab
+        d.rectangle([x0, y0 + len(lines) * line_h + pad * 2 - int(self.ch * 0.006),
+                     x0 + block_w + pad * 3.2, y0 + len(lines) * line_h + pad * 2],
+                    fill=(*self.accent, 255))
         for i, ln in enumerate(lines):
             w, _ = text_size(d, ln, font)
-            d.text(((self.cw - w) / 2, y0 + pad + i * line_h), ln, font=font, fill=ink)
+            d.text(((self.cw - w) / 2, y0 + pad + i * line_h), ln, font=font,
+                   fill=(245, 241, 232, 255),
+                   stroke_width=max(2, int(self.ch * 0.003)), stroke_fill=(0, 0, 0, 255))
         img.paste(overlay, (0, 0), overlay)
 
     def _draw_chapter_card(self, img: Image.Image, title: str, index: int, u: float) -> None:
@@ -404,50 +482,59 @@ class FrameRenderer:
         overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
         d = ImageDraw.Draw(overlay)
         d.rectangle([0, 0, self.cw, self.ch], fill=(12, 12, 16, int(185 * alpha)))
-        font_big = load_font(self.font_path, int(self.ch * 0.075))
-        font_small = load_font(self.font_path, int(self.ch * 0.032))
+        font_big = load_font(self.font_path, int(self.ch * 0.078))
+        font_small = load_font(self.font_path, int(self.ch * 0.034))
         kicker = f"PART {index + 1}"
-        ty = self.ch * 0.22
+        ty = self.ch * 0.30
         w, _ = text_size(d, kicker, font_small)
-        d.text(((self.cw - w) / 2, ty - self.ch * 0.06), kicker, font=font_small,
+        d.text(((self.cw - w) / 2, ty - self.ch * 0.07), kicker, font=font_small,
                fill=(*self.accent, int(255 * alpha)))
         for i, ln in enumerate(wrap_text(d, title, font_big, int(self.cw * 0.8))):
             w, _ = text_size(d, ln, font_big)
-            d.text(((self.cw - w) / 2, ty + i * self.ch * 0.09), ln, font=font_big,
-                   fill=(245, 241, 232, int(255 * alpha)))
+            d.text(((self.cw - w) / 2, ty + i * self.ch * 0.094), ln, font=font_big,
+                   fill=(245, 241, 232, int(255 * alpha)),
+                   stroke_width=max(2, int(self.ch * 0.0035)),
+                   stroke_fill=(0, 0, 0, int(255 * alpha)))
         bar_w = self.cw * 0.12
-        d.rectangle([(self.cw - bar_w) / 2, ty - self.ch * 0.015,
-                     (self.cw + bar_w) / 2, ty - self.ch * 0.008],
+        d.rectangle([(self.cw - bar_w) / 2, ty - self.ch * 0.018,
+                     (self.cw + bar_w) / 2, ty - self.ch * 0.010],
                     fill=(*self.accent, int(255 * alpha)))
         img.paste(overlay, (0, 0), overlay)
 
     # ---------------------------------------------------------------- camera
-    def _camera(self, t: float, scene: TimedScene, active: Optional[TimedLine]) -> Tuple[float, float, float]:
-        dur = max(1.0, scene.end - scene.start)
-        progress = min(1.0, max(0.0, (t - scene.start) / dur))
-        zoom = 1.0 + 0.06 * progress
-        # Slow horizontal drift, alternating direction per scene, for constant
-        # subtle motion even in still beats.
-        dx = (1 if scene.scene_index % 2 else -1) * 0.012 * self.cw * progress
+    def _camera(self, t: float, shot: str, active: TimedLine) -> Tuple[float, float, float]:
+        since = t - active.start
+        dur = max(0.4, active.end - active.start)
+        p = self._smooth(min(1.0, since / dur))
+        idx = self._line_index.get(active.voiced.line_id, 0)
+
+        # Alternate push-in / pull-out per beat so no two cuts feel the same.
+        amp = 0.10 if shot == SHOT_CLOSEUP else 0.07
+        cam = active.voiced.camera
+        if cam == "zoom_in":
+            zoom = 1.0 + (amp + 0.04) * p
+        elif cam == "zoom_out":
+            zoom = 1.0 + (amp + 0.04) * (1 - p)
+        elif idx % 2 == 0:
+            zoom = 1.0 + amp * p                  # push in
+        else:
+            zoom = 1.0 + amp * (1 - p)            # pull out
+
+        # Snap punch on the cut, easing out fast.
+        punch = 0.05 if cam == "punch" else 0.035
+        if since < PUNCH_SECONDS:
+            zoom += punch * (1 - since / PUNCH_SECONDS)
+
+        dx = (1 if idx % 2 else -1) * 0.010 * self.cw * p
         dy = 0.0
-        if active is not None:
-            since = t - active.start
-            if active.voiced.camera == "zoom_in":
-                zoom += 0.06 * math.sin(min(1.0, since / 0.35) * math.pi / 2)
-            elif active.voiced.camera == "shake" and since < SHAKE_SECONDS:
-                amp = self.ch * 0.008 * (1 - since / SHAKE_SECONDS)
-                dx = amp * math.sin(since * 73)
-                dy = amp * math.cos(since * 61)
+        if cam == "shake" and since < SHAKE_SECONDS:
+            amp_s = self.ch * 0.010 * (1 - since / SHAKE_SECONDS)
+            dx += amp_s * math.sin(since * 73)
+            dy += amp_s * math.cos(since * 61)
         return zoom, dx, dy
 
     # ------------------------------------------------------------ main frame
-    def frame_at(self, t: float) -> Image.Image:
-        scene = self.timeline.scene_at(t)
-        bg, base, is_dark = self.background(scene.background)
-        img = bg.copy()
-        draw = ImageDraw.Draw(img)
-
-        # Current beat — or hold the most recent beat's staging during gaps.
+    def _active_line(self, scene: TimedScene, t: float) -> TimedLine:
         tl = scene.active_line(t)
         if tl is None:
             for cand in scene.lines:
@@ -456,8 +543,25 @@ class FrameRenderer:
                 else:
                     break
             tl = tl or scene.lines[0]
-        self._draw_staging(draw, t, base, is_dark, tl)
-        active = tl
+        return tl
+
+    def frame_at(self, t: float) -> Image.Image:
+        scene = self.timeline.scene_at(t)
+        tl = self._active_line(scene, t)
+        shot = self._shot_for(tl)
+
+        if shot == SHOT_CLOSEUP:
+            img = self._closeup_backdrop(scene.scene_index).copy()
+            base, is_dark = (18, 14, 13), True
+        else:
+            bg, base, is_dark = self.background(scene.background)
+            img = bg.copy()
+            if shot == SHOT_MEDIUM:
+                img.paste(self._dim_overlay(), (0, 0), self._dim_overlay())
+                is_dark = True
+        draw = ImageDraw.Draw(img)
+
+        self._draw_staging(draw, t, base, is_dark, tl, shot, scene)
 
         if scene.caption:
             self._draw_caption(img, scene.caption, is_dark)
@@ -471,7 +575,7 @@ class FrameRenderer:
             font = load_font(self.font_path, int(self.ch * 0.024))
             wm_ink = mix(INK_LIGHT if is_dark else INK_DARK, base, 0.45)
             w, h = text_size(draw, self.watermark, font)
-            draw.text((self.cw - w - self.ch * 0.03, self.ch - h - self.ch * 0.045),
+            draw.text((self.cw - w - self.ch * 0.03, self.ch - h - self.ch * 0.05),
                       self.watermark, font=font, fill=wm_ink)
 
         if self.progress_bar:
@@ -480,7 +584,7 @@ class FrameRenderer:
             draw.rectangle([0, self.ch - bar_h, self.cw * frac, self.ch], fill=self.accent)
 
         # Camera: crop + downscale in one resize.
-        zoom, dx, dy = self._camera(t, scene, active)
+        zoom, dx, dy = self._camera(t, shot, tl)
         zoom = max(1.0, zoom)
         vw, vh = self.cw / zoom, self.ch / zoom
         x0 = max(0.0, min(self.cw - vw, (self.cw - vw) / 2 + dx))

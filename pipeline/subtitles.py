@@ -109,8 +109,10 @@ def write_ass(settings: Settings, cues: List[Cue], path: Path) -> Path:
     accent = hex_to_rgb(settings.accent)
     karaoke = bool(settings.get("subtitles", "karaoke", default=True))
     font = settings.get("subtitles", "font_name", default="DejaVu Sans")
-    size = int(settings.get("subtitles", "font_size", default=60))
-    margin_v = int(settings.get("subtitles", "margin_v", default=72))
+    size = int(settings.get("subtitles", "font_size", default=78))
+    margin_v = int(settings.get("subtitles", "margin_v", default=110))
+    outline = int(settings.get("subtitles", "outline", default=6))
+    shadow = int(settings.get("subtitles", "shadow", default=3))
 
     # With karaoke, the "sung" word takes PrimaryColour (accent) while the
     # rest stays SecondaryColour (white). Without karaoke, primary is white.
@@ -127,7 +129,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Cap,{font},{size},{primary},{secondary},&H00101014,&H96000000,-1,0,0,0,100,100,1,0,1,4,1,2,60,60,{margin_v},1
+Style: Cap,{font},{size},{primary},{secondary},&H00101014,&HB4000000,-1,0,0,0,100,100,1.5,0,1,{outline},{shadow},2,80,80,{margin_v},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text

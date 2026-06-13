@@ -88,13 +88,20 @@ def stage_render(settings: Settings, timeline, outdir: Path, ass_path, force: bo
         log("render: video.mp4 exists, skipping (use --force to re-render)")
         return out
     from .assembler import encode_video
+    from .audio_gen import ensure_bgm, synth_sfx_track
     from .renderer import FrameRenderer
+
+    ensure_bgm(settings, log=log)
+    sfx_path = None
+    if bool(settings.get("audio", "sfx", default=True)):
+        sfx_path = synth_sfx_track(settings, timeline, outdir / "sfx.wav", log=log)
+
     renderer = FrameRenderer(settings, timeline)
     burn = bool(settings.get("subtitles", "burn_in", default=True))
     log(f"render: {settings.width}x{settings.height}@{settings.fps} "
         f"({timeline.duration / 60:.1f} min, subtitles {'burned' if burn else 'external'})")
     encode_video(settings, renderer.frames(log=log), outdir / "voiceover.wav",
-                 out, ass_path if burn else None, log=log)
+                 out, ass_path if burn else None, sfx_wav=sfx_path, log=log)
     log(f"render: saved {out}")
     return out
 

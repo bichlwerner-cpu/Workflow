@@ -21,7 +21,7 @@ from pydantic import BaseModel, ValidationError
 
 from .config import Settings, require_env
 from .models import Chapter, Outline, Scene, ScenesPayload, Script
-from .vocab import ACTIONS, BACKGROUNDS, EMOTIONS, POSES, PROPS
+from .vocab import ACTIONS, BACKGROUNDS, EMOTIONS, POSES, PROPS, SHOTS
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -46,43 +46,56 @@ genuinely fascinating AND the screen never stops moving.
 
 LANGUAGE: write all narration, titles and captions in {lang}.
 
-FORMAT: every "line" is one NARRATION BEAT = the narrator's text (8-22 words) PLUS stage directions \
-("actors"): which characters are on screen, their pose, emotion and movement action. The narrator is \
-never visible. Characters never speak — they perform what the narration describes.
+FORMAT: every "line" is one NARRATION BEAT = the narrator's text (6-16 words) PLUS a SHOT: how it is \
+framed ("shot"), who is on screen ("actors": pose, emotion, movement), an optional floating icon \
+("prop") and a camera move. The narrator is never visible. Characters never speak — they perform what \
+the narration describes. Think of yourself cutting a fast-paced video: every beat is a new shot.
 
 CAST of silent actors (use ONLY these character keys):
 {_cast_block(settings)}
 
 RENDERER VOCABULARY (every value must come from these lists):
+- shots: {", ".join(SHOTS)}
 - poses: {", ".join(POSES)}
 - emotions: {", ".join(EMOTIONS)}
 - actions (movement): {", ".join(ACTIONS)}
 - backgrounds: {", ".join(BACKGROUNDS)}
 - props: {", ".join(PROPS)}
 
-VISUAL DIRECTING RULES (this is what makes the video feel expensive):
-1. The staging MUST change with every beat: different pose, action, prop, actor set or camera. Two \
-identical consecutive beats are forbidden.
-2. Change the BACKGROUND every 1-2 beats (one scene = one location/setup). Use the metaphor sets \
-actively: mountain = goals/effort, path_split = decisions, wall = obstacles, pit = failure/low point, \
-graph = data/results, stage = spotlight/judgement, night = fear/rumination, chalkboard = explanation.
-3. Use movement actions constantly: characters enter, walk across, approach each other, jump on wins, \
-collapse on defeats, exit when dismissed. A beat where someone just stands is the exception.
-4. ACT OUT the narration literally. "Your brain hits the brakes" -> actor collapses. "You finally try" \
--> actor enters and climbs toward the mountain flag. "Everyone judges you" -> two actors, one on stage, \
-one pointing. Make the screen tell the same story as the voice.
-5. 0 actors + a prop = a clean diagram shot (big icon) — use for numbers/concepts, max once per scene.
-6. captions: max 6 words, for key terms, numbers, study names. Use about every 3rd scene.
-7. camera: "shake" on shock beats, "zoom_in" on key reveals — at least one per scene.
+CASTING — ONE character on screen by default:
+- Almost every beat shows EXACTLY ONE actor: the protagonist "{next(iter(settings.characters))}" (= "you"). \
+Give it ONE actor. Never put two stickmen on screen just to fill space.
+- Use a SECOND actor only for genuine contrast: "you" versus the inner critic / temptation, or the expert \
+revealing something. When you do, use a "wide" shot so both fit.
+
+SHOTS — cut hard between framings (this is what makes it feel expensive):
+- "closeup": big lip-synced head. Use for emotional or direct-address lines ("you do this every day"), \
+reveals, punchlines. The character mouths the narration. This is your most-used shot.
+- "wide": full body on a metaphor stage. Use whenever the actor MOVES (enter, walk, jump, collapse) or \
+the background tells the story.
+- "insert": no actor, one big icon ("prop"). Use for a number or single concept. Max once per scene.
+- Alternate framings: never two close-ups in a row. Closeup -> wide -> closeup creates the cut rhythm.
+
+VISUAL DIRECTING RULES:
+1. ACT OUT the narration literally. "Your brain hits the brakes" -> wide, actor collapses. "You finally \
+try" -> wide, actor enters and walks toward the mountain flag. "One number explains it" -> insert with \
+that prop. "It feels personal" -> closeup, sad/shocked. The screen must show the same story as the voice.
+2. The staging MUST change every beat: different shot, pose, action, prop or camera. No two identical beats.
+3. Use the metaphor backgrounds actively: mountain = goals/effort, path_split = decisions, wall = \
+obstacles, pit = failure/low point, graph = data/results, stage = spotlight/judgement, night = \
+fear/rumination, chalkboard = explanation. One scene = one location.
+4. Use movement actions on wide shots: enter, walk_across, approach, jump on wins, collapse on defeats, exit.
+5. captions: max 5 words, for key terms, numbers, study names. About every 3rd scene.
+6. camera: "shake"/"punch" on shock beats, "zoom_in"/"zoom_out" on reveals — at least one per scene.
 
 RETENTION PLAYBOOK (non-negotiable):
-1. COLD OPEN: hit a curiosity gap within the first 12 words. Tease the most surprising payoff without \
-resolving it. No greetings, no "in this video".
+1. COLD OPEN: hit a curiosity gap within the FIRST 8 words. The first 3 beats must be rapid-fire \
+close-ups and a shock — fastest cuts of the whole video. No greetings, no "in this video".
 2. OPEN LOOPS: every chapter ends on an unresolved question pulling into the next chapter.
-3. PACE: short punchy sentences. Cut every filler word. A beat never exceeds 22 words. No throat-clearing.
+3. PACE: short punchy sentences, 6-16 words, ideally under 12. Cut every filler word. No throat-clearing.
 4. CONCRETE > ABSTRACT: every mechanism gets a vivid mini-story or number. Constant second person \
 ("you") — the viewer must feel personally diagnosed.
-5. RE-HOOKS: roughly every 90 seconds, remind the viewer what's still coming.
+5. RE-HOOKS: every ~60 seconds remind the viewer what's still coming.
 6. PAYOFFS: deliver real "aha" moments. A curiosity gap that ends in a banality kills the channel.
 
 SCIENTIFIC INTEGRITY (also non-negotiable):
@@ -220,8 +233,8 @@ class ScriptWriter:
 
     # ----------------------------------------------------------------- stages
     def outline(self, topic: str) -> Outline:
-        minutes = int(self.settings.get("video", "target_minutes", default=12))
-        n_chapters = max(4, min(9, round(minutes / 2.2)))
+        minutes = int(self.settings.get("video", "target_minutes", default=5))
+        n_chapters = max(3, min(5, round(minutes / 1.6)))
         prompt = f"""Plan a ~{minutes} minute video on this psychology topic:
 
 TOPIC: {topic}
@@ -250,10 +263,11 @@ WORKING TITLE: {outline.working_title}
 ANGLE: {outline.angle}
 CHAPTER PLAN: {"; ".join(c.title for c in outline.chapters)}
 
-Write the COLD OPEN (hook): 3-4 scenes, about {budget} spoken words total. It must open the video's core \
-curiosity gap in the first beat, tease the most surprising payoff from the later chapters, and end on a \
-hard open loop that makes skipping feel impossible. High visual energy: shocked/mind_blown beats, camera \
-shake, fast staging changes in every beat."""
+Write the COLD OPEN (hook): 2-3 scenes, about {budget} spoken words total in many SHORT beats (6-12 \
+words). Open the core curiosity gap in the first 8 words, tease the most surprising payoff from the \
+later chapters, and end on a hard open loop that makes skipping feel impossible. Maximum visual energy: \
+the first 3 beats are rapid close-ups + one shocked/mind_blown beat with camera shake or punch. One \
+actor only. Every beat is a new shot."""
         return self._parse(prompt, ScenesPayload).scenes
 
     def chapter(self, topic: str, outline: Outline, index: int, previous: List[Scene]) -> Chapter:
@@ -272,11 +286,12 @@ OPEN LOOP TO END ON (leads into "{nxt}"): {plan.open_loop}
 THE PREVIOUS SECTION ENDED WITH:
 {self._tail_of(previous)}
 
-Continue seamlessly from that ending (no recap, no greeting). Write 4-7 short scenes, about {budget} \
-spoken words total. Cover all content beats with concrete acted-out examples, change the background \
-every 1-2 narration beats, keep the actors moving, and end exactly on the open loop. Do NOT include a \
-subscribe/like CTA or a "next time/next video" tease — those belong exclusively in the outro, never in \
-a chapter."""
+Continue seamlessly from that ending (no recap, no greeting). Write 3-5 short scenes, about {budget} \
+spoken words total in short beats (6-16 words). Cover all content beats with concrete acted-out \
+examples. ONE actor on screen by default; alternate close-ups (lip-synced reactions) with wide shots \
+(movement on a metaphor background); use an insert for any key number. End exactly on the open loop. Do \
+NOT include a subscribe/like CTA or a "next time/next video" tease — those belong exclusively in the \
+outro, never in a chapter."""
         scenes = self._parse(prompt, ScenesPayload).scenes
         return Chapter(title=plan.title, scenes=scenes)
 

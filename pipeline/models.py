@@ -11,7 +11,8 @@ from typing import List, Optional
 from pydantic import BaseModel, Field, field_validator
 
 from .vocab import (ACTIONS, BACKGROUNDS, CAMERAS, EMOTIONS, POSES, PROPS,
-                    Action, Background, Camera, Emotion, PoseName, Prop)
+                    SHOTS, Action, Background, Camera, Emotion, PoseName,
+                    Prop, Shot)
 
 
 class Actor(BaseModel):
@@ -43,13 +44,14 @@ class Actor(BaseModel):
 class Line(BaseModel):
     """One narration beat: what the narrator says + what plays on screen."""
 
-    text: str = Field(description="Narrator voiceover for this beat. 8-22 words, punchy spoken rhythm.")
+    text: str = Field(description="Narrator voiceover for this beat. 6-16 words, punchy spoken rhythm.")
     actors: List[Actor] = Field(
         default_factory=list,
-        description="0-2 silent stickman actors performing this beat on screen. Empty list = diagram/prop-only shot.",
+        description="0-2 silent stickman actors. Prefer EXACTLY ONE (the protagonist). Empty list = diagram/prop-only shot. Two only for genuine contrast (you vs. the inner critic).",
     )
     prop: Prop = Field(default="none", description="Floating icon for this beat, or 'none'.")
-    camera: Camera = Field(default="normal", description="'shake' for shock beats, 'zoom_in' for emphasis, else 'normal'.")
+    camera: Camera = Field(default="normal", description="'shake'/'punch' for shock beats, 'zoom_in'/'zoom_out' for emphasis, else 'normal'.")
+    shot: Shot = Field(default="auto", description="Framing: 'closeup' (big head, lip-synced) for emotional/direct lines, 'wide' for movement/metaphor, 'insert' for a pure icon, else 'auto'.")
 
     @field_validator("prop", mode="before")
     @classmethod
@@ -60,6 +62,11 @@ class Line(BaseModel):
     @classmethod
     def _coerce_camera(cls, v):
         return v if v in CAMERAS else "normal"
+
+    @field_validator("shot", mode="before")
+    @classmethod
+    def _coerce_shot(cls, v):
+        return v if v in SHOTS else "auto"
 
     @field_validator("actors", mode="before")
     @classmethod

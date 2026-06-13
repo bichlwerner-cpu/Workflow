@@ -36,6 +36,7 @@ def encode_video(
     voice_wav: Path,
     out_path: Path,
     ass_path: Optional[Path] = None,
+    sfx_wav: Optional[Path] = None,
     log=print,
 ) -> Path:
     ensure_ffmpeg()
@@ -43,6 +44,7 @@ def encode_video(
     crf = int(settings.get("video", "crf", default=19))
     preset = str(settings.get("video", "preset", default="medium"))
     loudnorm = bool(settings.get("audio", "loudnorm", default=True))
+    sr = settings.sample_rate
 
     bgm: Optional[Path] = None
     bgm_setting = settings.get("audio", "bgm_path", default="")
@@ -52,6 +54,8 @@ def encode_video(
             candidate = ROOT / candidate
         if candidate.exists():
             bgm = candidate
+    if sfx_wav is not None and not Path(sfx_wav).exists():
+        sfx_wav = None
 
     cmd = [
         "ffmpeg", "-hide_banner", "-loglevel", "warning", "-y",
@@ -59,22 +63,40 @@ def encode_video(
         "-framerate", str(fps), "-i", "pipe:0",
         "-i", str(voice_wav),
     ]
+    bgm_idx = sfx_idx = -1
+    nxt = 2
     if bgm is not None:
         cmd += ["-stream_loop", "-1", "-i", str(bgm)]
+        bgm_idx, nxt = nxt, nxt + 1
+    if sfx_wav is not None:
+        cmd += ["-i", str(sfx_wav)]
+        sfx_idx, nxt = nxt, nxt + 1
 
     # --- audio graph ---------------------------------------------------------
-    bgm_db = float(settings.get("audio", "bgm_volume_db", default=-24))
+    # Voice is the master; music ducks beneath it, SFX sit on top.
+    bgm_db = float(settings.get("audio", "bgm_volume_db", default=-22))
+    sfx_db = float(settings.get("audio", "sfx_volume_db", default=-3))
+    parts: list = []
     if bgm is not None:
-        audio_graph = (
-            f"[2:a]aformat=channel_layouts=stereo,volume={bgm_db}dB[bg];"
-            f"[1:a]aformat=channel_layouts=stereo,asplit=2[vo][sc];"
-            f"[bg][sc]sidechaincompress=threshold=0.04:ratio=10:attack=10:release=500[duck];"
-            f"[vo][duck]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[mix]"
-        )
-        audio_src = "[mix]"
+        parts.append(f"[1:a]aformat=channel_layouts=stereo,aresample={sr},asplit=2[vo][vokey]")
     else:
-        audio_graph = "[1:a]aformat=channel_layouts=stereo[mix]"
+        parts.append(f"[1:a]aformat=channel_layouts=stereo,aresample={sr}[vo]")
+    mix_labels = ["[vo]"]
+    if bgm is not None:
+        parts.append(f"[{bgm_idx}:a]aformat=channel_layouts=stereo,aresample={sr},volume={bgm_db}dB[bgv]")
+        parts.append("[bgv][vokey]sidechaincompress=threshold=0.04:ratio=10:attack=10:release=500[bgd]")
+        mix_labels.append("[bgd]")
+    if sfx_wav is not None:
+        parts.append(f"[{sfx_idx}:a]aformat=channel_layouts=stereo,aresample={sr},volume={sfx_db}dB[fx]")
+        mix_labels.append("[fx]")
+
+    if len(mix_labels) == 1:
+        audio_src = mix_labels[0]
+    else:
+        parts.append(f"{''.join(mix_labels)}amix=inputs={len(mix_labels)}:"
+                     f"duration=first:dropout_transition=0:normalize=0[mix]")
         audio_src = "[mix]"
+    audio_graph = ";".join(parts)
 
     if loudnorm:
         audio_graph += f";{audio_src}loudnorm=I=-14:TP=-1.5:LRA=11[aout]"
@@ -92,7 +114,7 @@ def encode_video(
     cmd += [
         "-map", "0:v", "-map", audio_src,
         "-c:v", "libx264", "-preset", preset, "-crf", str(crf),
-        "-c:a", "aac", "-b:a", "192k",
+        "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
         "-movflags", "+faststart",
         "-shortest",
         str(out_path),

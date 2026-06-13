@@ -14,8 +14,8 @@ video:
   supersample: 2.0
   crf: 19            # x264 quality (lower = better, 17-21 sensible)
   preset: medium     # x264 speed/quality tradeoff
-  target_minutes: 12 # target spoken length of one video
-  words_per_minute: 165
+  target_minutes: 5  # target spoken length of one video (short-paced, 4-6 min)
+  words_per_minute: 170
 
 audio:
   # mp3_44100_128 works on every paid ElevenLabs plan. Upgrade options if your
@@ -23,23 +23,30 @@ audio:
   # wrapped to WAV locally without transcoding).
   output_format: mp3_44100_128
   sample_rate: 44100
-  line_gap: 0.10     # pause between narration beats (seconds) — keep tight
-  scene_gap: 0.35    # extra pause between scenes
-  chapter_gap: 0.60  # extra pause between chapters
-  lead_in: 0.40      # silence before the first word
-  tail: 1.50         # silence + held frame after the last word
-  bgm_path: assets/music/bgm.mp3   # optional; skipped if the file is missing
-  bgm_volume_db: -24               # background music level before ducking
+  line_gap: 0.06     # pause between narration beats (seconds) — short-pace cuts
+  scene_gap: 0.22    # extra pause between scenes
+  chapter_gap: 0.45  # extra pause between chapters
+  lead_in: 0.30      # silence before the first word
+  tail: 1.30         # silence + held frame after the last word
+  # Background music: a soft seamless loop is auto-generated to this path on the
+  # first render if the file is missing. Drop your own .mp3/.wav here to override,
+  # or set bgm_path: "" to disable music entirely.
+  bgm_path: assets/music/bgm.wav
+  bgm_volume_db: -22               # music level before sidechain ducking
+  sfx: true                        # swoosh on cuts, click on icons, impact on shocks
+  sfx_volume_db: -3                # sound-effects level in the mix
   loudnorm: true                   # normalize final mix to -14 LUFS (YouTube)
 
 subtitles:
   burn_in: true      # hard-burn styled captions into the video
   karaoke: true      # per-word highlight (strong retention device)
   font_name: DejaVu Sans
-  font_size: 60
-  margin_v: 72
-  max_words_per_cue: 5
-  max_chars_per_cue: 36
+  font_size: 78      # big and bold — captions must pop
+  margin_v: 110
+  outline: 6         # thick black outline so text reads on any background
+  shadow: 3
+  max_words_per_cue: 4
+  max_chars_per_cue: 30
 
 style:
   accent: "#FFD60A"        # channel accent color (props, highlights, progress bar)

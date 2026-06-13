@@ -35,7 +35,11 @@ Prop = Literal[
     "eye", "brain",
 ]
 
-Camera = Literal["normal", "zoom_in", "shake"]
+Camera = Literal["normal", "zoom_in", "zoom_out", "shake", "punch"]
+
+# Shot framing. "auto" lets the renderer choose from the beat's content; the
+# director can force a framing for rhythm (e.g. an abrupt close-up cut).
+Shot = Literal["auto", "wide", "medium", "closeup", "insert"]
 
 EMOTIONS = list(get_args(Emotion))
 POSES = list(get_args(PoseName))
@@ -43,3 +47,4 @@ BACKGROUNDS = list(get_args(Background))
 PROPS = list(get_args(Prop))
 CAMERAS = list(get_args(Camera))
 ACTIONS = list(get_args(Action))
+SHOTS = list(get_args(Shot))

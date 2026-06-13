@@ -46,6 +46,7 @@ class VoicedLine:
     actors: List[dict]    # [{character, pose, emotion, action}], 0-2 entries
     prop: str
     camera: str
+    shot: str             # framing hint: auto|wide|medium|closeup|insert
     wav_path: str
     duration: float
     # parallel arrays from ElevenLabs alignment (relative to line start)
@@ -238,7 +239,7 @@ def synthesize_script(settings: Settings, script: Script, outdir: Path, log=prin
             line_id=line_id, section=section, chapter_index=ch_idx,
             scene_index=scene_idx, text=line.text,
             actors=[a.model_dump() for a in line.actors],
-            prop=line.prop, camera=line.camera,
+            prop=line.prop, camera=line.camera, shot=line.shot,
             wav_path=str(wav_path), duration=float(align["duration"]),
             chars=align["chars"], char_starts=align["starts"], char_ends=align["ends"],
         ))
@@ -252,4 +253,10 @@ def synthesize_script(settings: Settings, script: Script, outdir: Path, log=prin
 
 def load_manifest(outdir: Path) -> List[VoicedLine]:
     data = json.loads((outdir / "voice_manifest.json").read_text(encoding="utf-8"))
-    return [VoicedLine(**d) for d in data]
+    fields = set(VoicedLine.__dataclass_fields__)
+    out: List[VoicedLine] = []
+    for d in data:
+        d = {k: v for k, v in d.items() if k in fields}
+        d.setdefault("shot", "auto")  # tolerate manifests from older runs
+        out.append(VoicedLine(**d))
+    return out

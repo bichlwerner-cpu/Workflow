@@ -26,6 +26,23 @@ Stickman-Charaktere spielen die Erzählung stumm als Szenen nach — mit
 Auftritten, Märschen, Sprüngen, Zusammenbrüchen und Metapher-Kulissen
 (Berg = Ziel, Weggabelung = Entscheidung, Mauer = Hindernis, Grube = Tiefpunkt).
 
+**Schnitt-System (Shots).** Jeder Sprech-Beat ist ein eigener *Shot* mit hartem
+Cut: **Close-up** (großer Kopf, echte Lippensynchronisation zur Erzählung) für
+emotionale/direkte Sätze, **Wide** (ganzer Körper, Bewegung auf der
+Metapher-Kulisse) für Aktion, **Insert** (ein großes Icon) für Zahlen/Begriffe.
+Standardmäßig steht **genau ein** Charakter im Bild; ein zweiter erscheint nur
+für echten Kontrast (du vs. innerer Kritiker). Pro Beat: eigener Zoom
+(rein/raus), Snap-„Punch" auf dem Cut, Kamera-Shake bei Schock-Momenten —
+das Bild steht nie still. Ziellänge **4–6 Minuten, Short-Tempo**.
+
+**Ton.** Zur Stimme werden automatisch **Sound-Effekte** (Swoosh auf Cuts,
+Klick beim Einblenden von Icons, tiefer Impact bei Schock-Beats) und ein
+**Hintergrund-Musikbett** gemischt. Beides wird prozedural erzeugt (keine
+Extra-Installation, keine Lizenzprobleme); die Musik wird beim ersten Render
+automatisch nach `assets/music/bgm.wav` generiert und unter der Stimme
+gesidechain-duckt. Eigene `bgm.mp3`/`bgm.wav` einfach dorthin legen zum
+Überschreiben, oder `audio.bgm_path: ""` setzen, um Musik abzuschalten.
+
 Die **Erzählstimme** bleibt konsistent durch drei Mechanismen:
 
 1. Eine feste `voice_id` mit eingefrorenen Voice-Settings
@@ -104,9 +121,11 @@ Abstraktion, ein CTA. Gleichzeitig gilt: **echte Psychologie, keine erfundenen
 Studien, Titel ohne Lügen** — Clickbait, der nicht eingelöst wird, killt den
 Kanal langfristig.
 
-Im Video selbst: Wort-Karaoke-Untertitel (das gesprochene Wort leuchtet in der
-Akzentfarbe), Kapitelkarten, schwebende Props, Kamera-Zoom/-Shake bei
-Schock-Momenten, Fortschrittsbalken, Sidechain-Ducking der Musik.
+Im Video selbst: harte Cuts zwischen Close-up/Wide/Insert mit Snap-Punch und
+Swoosh, Lippensynchronisation in Close-ups, große fett-umrandete
+Wort-Karaoke-Untertitel (das gesprochene Wort leuchtet in der Akzentfarbe),
+Kapitelkarten, schwebende Props mit Klick-Sound, Kamera-Zoom/-Shake bei
+Schock-Momenten, Fortschrittsbalken, Musikbett mit Sidechain-Ducking.
 
 ## Konfiguration
 
@@ -131,14 +150,15 @@ Veröffentlichen immer kurz prüfen (Upload-Stufe lädt standardmäßig privat h
 python scripts/smoke_test.py    # rendert Beispiel-Frames + Thumbnail nach output/_smoke/
 ```
 
-## Kosten pro Video (Größenordnung, 12 min)
+## Kosten pro Video (Größenordnung, ~5 min, Short-Tempo)
 
 | Posten | ca. |
 |---|---|
-| Skript mit Gemini (Standard, ~10 Calls) | 0 USD (Free Tier) |
-| Skript mit Claude (optional, beste Qualität) | 1–3 USD |
-| ElevenLabs (~1.800 Wörter ≈ 10–12 k Zeichen) | Kontingent des Abos |
-| Rendern | nur CPU-Zeit (~20–60 min je nach Maschine) |
+| Skript mit Gemini (Standard, ~8 Calls) | 0 USD (Free Tier) |
+| Skript mit Claude (optional, beste Qualität) | 1–2 USD |
+| ElevenLabs (~850 Wörter ≈ 5–6 k Zeichen) | Kontingent des Abos |
+| SFX + Musikbett | 0 USD (prozedural erzeugt) |
+| Rendern | nur CPU-Zeit (~10–30 min je nach Maschine) |
 
 ## Troubleshooting
 
