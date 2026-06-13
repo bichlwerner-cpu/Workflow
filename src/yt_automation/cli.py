@@ -28,6 +28,8 @@ app = typer.Typer(
 )
 footage_app = typer.Typer(help="Footage assets (download, clip, list).")
 app.add_typer(footage_app, name="footage")
+mascot_app = typer.Typer(help="2D-Brand-Charakter: konsistente Posen/Ausdrücke als Bilder.")
+app.add_typer(mascot_app, name="mascot")
 console = Console()
 
 
@@ -232,6 +234,80 @@ def footage_list() -> None:
         size_mb = p.stat().st_size / (1024 * 1024)
         table.add_row(p.name, f"{size_mb:.1f} MB")
     console.print(table)
+
+
+# ============================================================
+# Mascot subcommands (consistent 2D character)
+# ============================================================
+
+
+@mascot_app.command("list")
+def mascot_list() -> None:
+    """Alle verfügbaren Posen, Ausdrücke und Lip-Sync-Mundformen auflisten."""
+    from .character import EXPRESSIONS, POSES, VISEMES
+
+    table = Table(title="Mascot-Bibliothek")
+    table.add_column("Posen")
+    table.add_column("Ausdrücke")
+    table.add_column("Visemes (Lip-Sync)")
+    rows = max(len(POSES), len(EXPRESSIONS), len(VISEMES))
+    poses, exprs, vis = list(POSES), list(EXPRESSIONS), list(VISEMES)
+    for i in range(rows):
+        table.add_row(
+            poses[i] if i < len(poses) else "",
+            exprs[i] if i < len(exprs) else "",
+            vis[i] if i < len(vis) else "",
+        )
+    console.print(table)
+
+
+@mascot_app.command("sheet")
+def mascot_sheet(
+    out: Annotated[Path, typer.Option(help="Ziel-PNG.")] = Path("out/mascot/contact_sheet.png"),
+    cols: Annotated[int, typer.Option(help="Spalten im Raster.")] = 4,
+) -> None:
+    """Kontaktblatt aller Posen + Ausdrücke als ein PNG."""
+    from .character import contact_sheet
+
+    with console.status("Rendere Kontaktblatt..."):
+        contact_sheet(out, cols=cols)
+    console.print(f"[green]✓[/green] {out}")
+
+
+@mascot_app.command("export")
+def mascot_export(
+    out: Annotated[Path, typer.Option(help="Ziel-Ordner für die Bilder-Bibliothek.")] = Path("out/mascot"),
+    width: Annotated[int, typer.Option(help="PNG-Breite in px (Höhe folgt 600:760).")] = 1200,
+    full: Annotated[bool, typer.Option("--full", help="Komplette Pose×Ausdruck-Matrix.")] = False,
+    svg: Annotated[bool, typer.Option("--svg/--no-svg", help="Editierbare SVG-Quellen mitschreiben.")] = True,
+) -> None:
+    """Transparente PNGs aller Posen/Ausdrücke/Visemes für den Editor exportieren."""
+    from .character import export_library
+
+    with console.status("Exportiere Bilder-Bibliothek..."):
+        files = export_library(out, width=width, full=full, svg_too=svg)
+    console.print(f"[green]✓[/green] {len(files)} Bilder -> {out}")
+    console.print("[dim]Transparent, hochauflösend. Für Editor: poses/, expressions/, visemes/[/dim]")
+
+
+@mascot_app.command("pose")
+def mascot_pose(
+    pose: Annotated[str, typer.Argument(help="Pose-Name (siehe `mascot list`).")] = "idle",
+    expression: Annotated[str, typer.Argument(help="Ausdruck-Name.")] = "neutral",
+    out: Annotated[Path, typer.Option(help="Ziel-PNG.")] = Path("out/mascot/pose.png"),
+    width: Annotated[int, typer.Option()] = 1200,
+    background: Annotated[Optional[str], typer.Option(help="Hex-Farbe, z.B. '#F4F1EA'. Sonst transparent.")] = None,
+) -> None:
+    """Eine einzelne Pose+Ausdruck als PNG rendern."""
+    from .character import EXPRESSIONS, POSES, build_svg, rasterize
+
+    if pose not in POSES:
+        raise typer.BadParameter(f"Pose '{pose}' unbekannt. `mascot list` zeigt alle.")
+    if expression not in EXPRESSIONS:
+        raise typer.BadParameter(f"Ausdruck '{expression}' unbekannt. `mascot list` zeigt alle.")
+    svg = build_svg(POSES[pose], EXPRESSIONS[expression], bg=background)
+    rasterize(svg, out, width=width, transparent=background is None)
+    console.print(f"[green]✓[/green] {out}")
 
 
 if __name__ == "__main__":

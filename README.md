@@ -30,6 +30,49 @@ yt-automation run "Topic" --format shorts --background ./assets/footage --word-c
 
 Mit ElevenLabs (`TTS_PROVIDER=elevenlabs` in `.env`) kommt eine natürlichere Stimme — kostet ab 10.000 Zeichen/Monat.
 
+## 2D Brand-Charakter (Mascot)
+
+Für einen faceless Channel mit eigenem Charakter ("yellow dude"-Stil). Der Clou:
+der Charakter ist **kein KI-Bild**, sondern parametrisch im Code definiert
+(`character.py`). Jede Pose nutzt exakt dieselben Teile, Farben, Proportionen und
+Strichstärken – nur Gelenkwinkel/Position ändern sich. Dadurch ist er über
+beliebig viele Frames **zu 100 % konsistent**, was ein Editor braucht, um die
+Bilder smooth aneinanderzureihen.
+
+```bash
+# Was gibt es? (Posen, Ausdrücke, Lip-Sync-Mundformen)
+yt-automation mascot list
+
+# Kontaktblatt (ein PNG zum Überblick)
+yt-automation mascot sheet --out out/mascot/contact_sheet.png
+
+# Komplette Bilder-Bibliothek für den Editor (transparente PNGs + SVG-Quellen)
+yt-automation mascot export --out out/mascot --width 1200
+yt-automation mascot export --out out/mascot --full      # ganze Pose×Ausdruck-Matrix
+
+# Einzelne Pose+Ausdruck
+yt-automation mascot pose wave happy --out out/mascot/wave.png
+```
+
+Export-Struktur:
+
+```
+out/mascot/
+├── poses/        idle, wave, point_up/right/left, thumbs_up, thinking,
+│                 hands_hips, shrug, celebrate, welcome, run, facepalm
+├── expressions/  neutral, happy, talk, surprised, sad, angry, thinking,
+│                 wink, cool, dead
+├── visemes/      rest, mbp, talk_a/e/i/o/u   (Mundformen für Lip-Sync)
+└── svg/          editierbare Vektor-Quellen aller Bilder
+```
+
+Alle PNGs sind transparent und hochauflösend – direkt im Editor (After Effects,
+Premiere, CapCut, DaVinci) auf Hintergründe komponierbar. Die `visemes/` sind die
+Mundformen, mit denen sich das Voiceover lippensynchron animieren lässt.
+
+**Re-Branding:** Farbe/Style an einer Stelle ändern – die `PALETTE`-Konstanten oben
+in `character.py` (`BODY`, `OUTLINE`, `CHEEK`, …). Alle Posen aktualisieren sich.
+
 ## Skript-Datei-Format
 
 Plain Text. Absätze durch Leerzeilen getrennt. Erster Absatz = Hook, letzter = Call-to-Action, dazwischen = Sections. Optional Header oben:
