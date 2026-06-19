@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 from typing import Literal
 
-import anthropic
 from pydantic import BaseModel, Field
 
 from .config import Config
@@ -58,6 +57,8 @@ def generate_script(
     style: Style = "explainer",
     language: str = "de",
 ) -> VideoScript:
+    import anthropic  # imported lazily so the free/offline path needs no SDK
+
     client = anthropic.Anthropic(api_key=cfg.anthropic_api_key)
 
     user_prompt = (

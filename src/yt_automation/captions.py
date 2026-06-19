@@ -10,8 +10,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from faster_whisper import WhisperModel
-
 from .config import Config
 
 
@@ -24,6 +22,8 @@ class Word:
 
 def transcribe(cfg: Config, audio_path: Path, language: str = "de") -> list[Word]:
     """Run Whisper with word timestamps. CPU/int8 by default for portability."""
+    from faster_whisper import WhisperModel  # heavy; imported only when used
+
     model = WhisperModel(cfg.whisper_model, device="cpu", compute_type="int8")
     segments, _info = model.transcribe(
         str(audio_path),
@@ -43,6 +43,37 @@ def transcribe(cfg: Config, audio_path: Path, language: str = "de") -> list[Word
     return words
 
 
+def words_from_marks(marks: list) -> list[Word]:
+    """Convert :class:`yt_automation.tts.WordMark` objects to caption Words."""
+    out: list[Word] = []
+    for m in marks:
+        text = (getattr(m, "text", "") or "").strip()
+        if text:
+            out.append(Word(text=text, start=float(m.start), end=float(m.end)))
+    return out
+
+
+def even_words(text: str, start: float, end: float) -> list[Word]:
+    """Distribute a line's words across [start, end], weighted by length.
+
+    Used when a TTS provider gives no word boundaries (e.g. espeak / ElevenLabs)
+    so captions still appear word-by-word, synced to the beat window.
+    """
+    tokens = [t for t in text.split() if t]
+    if not tokens:
+        return []
+    weights = [max(1, len(t)) for t in tokens]
+    total = sum(weights)
+    span = max(0.001, end - start)
+    out: list[Word] = []
+    cursor = start
+    for tok, wt in zip(tokens, weights):
+        dur = span * (wt / total)
+        out.append(Word(text=tok, start=cursor, end=cursor + dur))
+        cursor += dur
+    return out
+
+
 def _ass_time(seconds: float) -> str:
     if seconds < 0:
         seconds = 0.0
@@ -60,12 +91,22 @@ def write_ass(
     height: int,
     font_size: int | None = None,
     words_per_line: int = 1,
+    margin_v_frac: float | None = None,
 ) -> Path:
-    """Render words to ASS with one chunk highlighted at a time."""
-    if font_size is None:
-        font_size = 90 if height > width else 60
+    """Render words to ASS with one chunk highlighted at a time.
 
-    margin_v = int(height * 0.42) if height > width else 80
+    Captions use ASS alignment 2 (bottom-centre), so ``margin_v`` is measured
+    from the bottom. ``margin_v_frac`` (fraction of height from the bottom)
+    overrides the default placement — use a small value (~0.1) to drop captions
+    into the lower third, clear of a centred subject.
+    """
+    if font_size is None:
+        font_size = 78 if height > width else 60
+
+    if margin_v_frac is not None:
+        margin_v = int(height * margin_v_frac)
+    else:
+        margin_v = int(height * 0.42) if height > width else 80
 
     header = f"""[Script Info]
 ScriptType: v4.00+

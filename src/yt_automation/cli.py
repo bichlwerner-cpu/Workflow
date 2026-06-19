@@ -24,10 +24,15 @@ from .video import VideoFormat, render_with_title_card, write_srt_from_script
 
 app = typer.Typer(
     add_completion=False,
-    help="YouTube content pipeline: text/topic -> script -> TTS -> video.",
+    help="Automated stickman YouTube channel: topic -> script -> TTS -> "
+    "animation -> captions -> video + thumbnail + metadata.",
 )
 footage_app = typer.Typer(help="Footage assets (download, clip, list).")
+channel_app = typer.Typer(help="Automated stickman channel: episodes & batches.")
+stickman_app = typer.Typer(help="Stickman animation engine (demo, actions).")
 app.add_typer(footage_app, name="footage")
+app.add_typer(channel_app, name="channel")
+app.add_typer(stickman_app, name="stickman")
 console = Console()
 
 
@@ -232,6 +237,162 @@ def footage_list() -> None:
         size_mb = p.stat().st_size / (1024 * 1024)
         table.add_row(p.name, f"{size_mb:.1f} MB")
     console.print(table)
+
+
+# ============================================================
+# Stickman channel (psychology, fast-paced, animated)
+# ============================================================
+
+
+@channel_app.command("episode")
+def channel_episode(
+    topic: Annotated[Optional[str], typer.Argument(help="Topic. Omit to pick from the bank.")] = None,
+    preset: Annotated[str, typer.Option(help="Channel preset.")] = "psychology_en",
+    source: Annotated[str, typer.Option(help="auto | curated | template | claude")] = "auto",
+    theme: Annotated[Optional[str], typer.Option(help="Override visual theme.")] = None,
+    fps: Annotated[Optional[int], typer.Option(help="Override frames per second.")] = None,
+    supersample: Annotated[int, typer.Option(help="2 = smoother lines, ~4x slower.")] = 1,
+) -> None:
+    """Produce one finished stickman episode (video + thumbnail + metadata)."""
+    from .channel import get_preset, produce_episode
+
+    cfg = Config.load()
+    ch = get_preset(preset)
+    if theme:
+        ch.theme = theme
+    if fps:
+        ch.fps = fps
+    ch.supersample = supersample
+
+    console.print(f"[bold]Channel:[/bold] {ch.name} ({ch.handle})  "
+                  f"[bold]theme:[/bold] {ch.theme}  [bold]source:[/bold] {source}")
+    with console.status("Producing episode (script → voice → animation → caption → render)..."):
+        res = produce_episode(cfg, channel=ch, topic=topic, source=source)
+
+    console.print(f"\n[bold]{res.script.title}[/bold]")
+    console.print(f"[green]✓[/green] Video     -> {res.video_path}")
+    console.print(f"[green]✓[/green] Thumbnail -> {res.thumbnail_path}")
+    console.print(f"[green]✓[/green] Metadata  -> {res.metadata_path}")
+    console.print(f"[green]✓[/green] Duration  -> {res.duration:.1f}s, {len(res.script.beats)} beats")
+
+
+@channel_app.command("batch")
+def channel_batch(
+    count: Annotated[int, typer.Option(help="How many episodes to produce.")] = 5,
+    preset: Annotated[str, typer.Option()] = "psychology_en",
+    source: Annotated[str, typer.Option(help="auto | curated | template | claude")] = "auto",
+    supersample: Annotated[int, typer.Option()] = 1,
+) -> None:
+    """Produce a batch of episodes and lay out a publish schedule."""
+    from .channel import get_preset, produce_batch
+
+    cfg = Config.load()
+    ch = get_preset(preset)
+    ch.supersample = supersample
+    console.print(f"[bold]Producing {count} episodes for {ch.name}...[/bold]")
+
+    def _progress(i: int, n: int, topic: str) -> None:
+        console.print(f"  [{i + 1}/{n}] {topic}")
+
+    results = produce_batch(cfg, channel=ch, count=count, source=source, progress=_progress)
+
+    table = Table(title=f"{ch.name}: {len(results)} episodes")
+    table.add_column("title")
+    table.add_column("dur")
+    table.add_column("dir")
+    for r in results:
+        table.add_row(r.script.title, f"{r.duration:.0f}s", str(r.directory))
+    console.print(table)
+
+
+@channel_app.command("topics")
+def channel_topics() -> None:
+    """List the built-in psychology topic bank."""
+    from .content.psychology import list_topics
+
+    table = Table(title="Psychology topic bank")
+    table.add_column("#")
+    table.add_column("topic")
+    table.add_column("angle")
+    for i, (t, a) in enumerate(list_topics(), start=1):
+        table.add_row(str(i), t, a)
+    console.print(table)
+
+
+@channel_app.command("presets")
+def channel_presets() -> None:
+    """List channel presets."""
+    from .channel import PRESETS
+
+    table = Table(title="Channel presets")
+    table.add_column("preset")
+    table.add_column("name")
+    table.add_column("lang")
+    table.add_column("theme")
+    table.add_column("voice")
+    for key, ch in PRESETS.items():
+        table.add_row(key, ch.name, ch.language, ch.theme, ch.voice or "(env)")
+    console.print(table)
+
+
+@channel_app.command("upload")
+def channel_upload(
+    episode_dir: Annotated[Path, typer.Argument(help="Episode directory (with metadata.json).")],
+    client_secret: Annotated[Optional[Path], typer.Option(help="OAuth client_secret.json.")] = None,
+    token: Annotated[Optional[Path], typer.Option(help="Cached OAuth token store.")] = None,
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Validate & print plan only.")] = False,
+) -> None:
+    """Upload a produced episode to YouTube (or --dry-run to preview)."""
+    from .youtube_upload import describe_plan, load_plan, upload_episode
+
+    meta, video, thumb = load_plan(episode_dir)
+    console.print(f"[bold]Upload plan for {episode_dir.name}:[/bold]")
+    console.print(describe_plan(meta, video, thumb))
+    if dry_run:
+        console.print("[yellow]--dry-run: nothing uploaded.[/yellow]")
+        return
+    if not client_secret:
+        console.print("[red]--client-secret is required to upload (see README).[/red]")
+        raise typer.Exit(1)
+    with console.status("Uploading to YouTube..."):
+        vid = upload_episode(episode_dir, client_secret=client_secret,
+                             token_store=token, dry_run=False)
+    console.print(f"[green]✓[/green] https://youtu.be/{vid}")
+
+
+# ============================================================
+# Stickman engine helpers
+# ============================================================
+
+
+@stickman_app.command("demo")
+def stickman_demo(
+    out: Annotated[Path, typer.Option(help="Output mp4.")] = Path("out/stickman_demo.mp4"),
+    theme: Annotated[str, typer.Option()] = "midnight",
+    fps: Annotated[int, typer.Option()] = 30,
+) -> None:
+    """Render a short showcase animation (no TTS, no network)."""
+    from .stickman.scene import Beat, RenderConfig, render_storyboard
+
+    beats = [
+        Beat("Your brain is lying to you.", action="point", keyword="LIE", intensity=0.85, start=0.0, duration=2.0),
+        Beat("Stress hijacks every decision.", action="panic", keyword="STRESS", intensity=0.95, start=2.0, duration=2.0),
+        Beat("Procrastination is fear in disguise.", action="facepalm", keyword="FEAR", intensity=0.7, start=4.0, duration=2.0),
+        Beat("But awareness flips the switch.", action="idea", keyword="AWARE", intensity=0.85, start=6.0, duration=2.0),
+        Beat("Take back control.", action="power", keyword="CONTROL", intensity=0.9, start=8.0, duration=2.0),
+    ]
+    cfg = RenderConfig(width=1080, height=1920, fps=fps, theme=theme)
+    with console.status("Rendering demo..."):
+        render_storyboard(beats, out, cfg)
+    console.print(f"[green]✓[/green] {out}")
+
+
+@stickman_app.command("actions")
+def stickman_actions() -> None:
+    """List the available stickman actions."""
+    from .stickman.actions import action_names
+
+    console.print("Actions: " + ", ".join(action_names()))
 
 
 if __name__ == "__main__":

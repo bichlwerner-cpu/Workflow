@@ -13,12 +13,12 @@ import shutil
 import subprocess
 from pathlib import Path
 
-import yt_dlp
-
 VIDEO_EXTS = {".mp4", ".mov", ".webm", ".mkv", ".m4v"}
 
 
 def download(url: str, out_dir: Path, *, max_height: int = 1080) -> Path:
+    import yt_dlp  # optional dependency, imported only when downloading
+
     out_dir.mkdir(parents=True, exist_ok=True)
     opts = {
         "format": (

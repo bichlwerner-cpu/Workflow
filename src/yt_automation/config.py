@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-TTSProvider = Literal["edge", "elevenlabs"]
+TTSProvider = Literal["edge", "elevenlabs", "local"]
 
 
 @dataclass(frozen=True)
@@ -19,6 +19,8 @@ class Config:
     elevenlabs_api_key: str  # may be empty when not used
     elevenlabs_voice_id: str
     elevenlabs_model_id: str
+    local_voice: str         # espeak-ng voice (offline provider)
+    local_rate: int          # espeak-ng words-per-minute
 
     # LLM (only required for auto-script commands)
     anthropic_api_key: str  # may be empty
@@ -44,9 +46,9 @@ class Config:
         footage_dir.mkdir(parents=True, exist_ok=True)
 
         provider = os.environ.get("TTS_PROVIDER", "edge").strip().lower()
-        if provider not in ("edge", "elevenlabs"):
+        if provider not in ("edge", "elevenlabs", "local"):
             raise RuntimeError(
-                f"TTS_PROVIDER must be 'edge' or 'elevenlabs', got '{provider}'"
+                f"TTS_PROVIDER must be 'edge', 'elevenlabs' or 'local', got '{provider}'"
             )
 
         return cls(
@@ -59,6 +61,8 @@ class Config:
             elevenlabs_model_id=os.environ.get(
                 "ELEVENLABS_MODEL_ID", "eleven_multilingual_v2"
             ),
+            local_voice=os.environ.get("LOCAL_VOICE", "en-us"),
+            local_rate=int(os.environ.get("LOCAL_RATE", "165")),
             anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY", "").strip(),
             anthropic_model=os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-7"),
             anthropic_effort=os.environ.get("ANTHROPIC_EFFORT", "high"),
