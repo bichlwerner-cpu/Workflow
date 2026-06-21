@@ -74,6 +74,68 @@ def even_words(text: str, start: float, end: float) -> list[Word]:
     return out
 
 
+def _ass_color(rgb: tuple[int, int, int]) -> str:
+    r, g, b = rgb
+    return f"&H00{b:02X}{g:02X}{r:02X}"
+
+
+def write_ass_karaoke(
+    words: list[Word],
+    out_path: Path,
+    *,
+    width: int,
+    height: int,
+    group_size: int = 3,
+    accent: tuple[int, int, int] = (0, 224, 255),
+    font_size: int | None = None,
+    margin_v_frac: float = 0.12,
+) -> Path:
+    """Phrase captions where the *currently spoken* word is highlighted.
+
+    Words are shown in short groups; for each word we emit one event showing the
+    whole group with that word coloured in the brand ``accent`` and enlarged, so
+    the highlight tracks the voice (the modern high-retention caption look).
+    """
+    if font_size is None:
+        font_size = int(height * 0.050) if height > width else int(height * 0.058)
+    margin_v = int(height * margin_v_frac)
+    accent_c = _ass_color(accent)
+    white_c = "&H00FFFFFF"
+
+    header = f"""[Script Info]
+ScriptType: v4.00+
+PlayResX: {width}
+PlayResY: {height}
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Arial Black,{font_size},{white_c},&H000000FF,&H00101014,&H96000000,1,0,0,0,100,100,0,0,1,6,3,2,40,40,{margin_v},1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+"""
+    lines = [header]
+    groups = [words[i:i + group_size] for i in range(0, len(words), group_size)]
+    for grp in groups:
+        toks = [(w.text or "").upper().replace("{", "(").replace("}", ")") for w in grp]
+        for k, wd in enumerate(grp):
+            parts = []
+            for i, tok in enumerate(toks):
+                if i == k:
+                    parts.append(f"{{\\c{accent_c}\\fscx118\\fscy118}}{tok}{{\\c{white_c}\\fscx100\\fscy100}}")
+                else:
+                    parts.append(tok)
+            text = " ".join(parts)
+            lines.append(
+                f"Dialogue: 0,{_ass_time(wd.start)},{_ass_time(wd.end)},Default,,0,0,0,,{text}\n"
+            )
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text("".join(lines), encoding="utf-8")
+    return out_path
+
+
 def _ass_time(seconds: float) -> str:
     if seconds < 0:
         seconds = 0.0

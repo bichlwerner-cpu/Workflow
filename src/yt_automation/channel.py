@@ -60,6 +60,7 @@ class ChannelConfig:
     privacy: str = "private"          # private | unlisted | public
     publish_per_day: int = 1
     cta: str = "Follow for daily psychology."
+    tagline: str = "the psychology they never taught you"   # intro card subtitle
 
     def hashtags(self, tags: list[str]) -> list[str]:
         seen, out = set(), []
@@ -135,6 +136,34 @@ def _silence(path: Path, seconds: float, ffmpeg: str = "ffmpeg") -> Path:
         check=True, capture_output=True,
     )
     return path
+
+
+def pad_and_polish_audio(
+    audio_path: Path, out: Path, *, lead_in: float, tail: float, ffmpeg: str = "ffmpeg"
+) -> tuple[Path, float]:
+    """Loudness-normalise, add a lead-in/tail and fade in/out.
+
+    Gives the video a clean opener (intro card runs over the lead-in silence),
+    a graceful ending (outro card over the tail) and consistent loudness — a
+    recognisable jump in perceived production quality. Returns (path, duration).
+    """
+    body = audio_duration_seconds(audio_path)
+    total = lead_in + body + tail
+    delay_ms = int(lead_in * 1000)
+    fade_out_start = max(0.0, total - 0.7)
+    af = (
+        "loudnorm=I=-15:TP=-1.5:LRA=11,"
+        f"adelay=delays={delay_ms}:all=1,"
+        f"apad=pad_dur={tail:.3f},"
+        "afade=t=in:st=0:d=0.4,"
+        f"afade=t=out:st={fade_out_start:.3f}:d=0.7"
+    )
+    subprocess.run(
+        [ffmpeg, "-y", "-i", str(audio_path), "-af", af,
+         "-c:a", "libmp3lame", "-q:a", "2", str(out)],
+        check=True, capture_output=True,
+    )
+    return out, total
 
 
 def _concat_audio(clips: list[Path], out: Path, ffmpeg: str = "ffmpeg") -> Path:
@@ -343,17 +372,20 @@ def produce_episode(
             last, duration=max(0.4, duration - last.start)
         )
 
+    from .stickman.character import get_character
+
+    char = get_character(channel.character)
     w, h = dimensions(channel.fmt)
     rcfg = RenderConfig(
         width=w, height=h, fps=channel.fps, theme=channel.theme,
-        supersample=channel.supersample,
+        supersample=channel.supersample, character=channel.character,
+        watermark=channel.handle,
     )
     bg_path = render_storyboard(render_beats, work / "stickman_bg.mp4", rcfg, progress=progress)
 
-    ass_path = captions.write_ass(
+    ass_path = captions.write_ass_karaoke(
         caption_words, work / "captions.ass", width=w, height=h,
-        words_per_line=channel.words_per_caption,
-        margin_v_frac=channel.caption_margin_frac,
+        accent=char.glow, margin_v_frac=channel.caption_margin_frac,
     )
 
     video_path = ep_dir / "video.mp4"
@@ -408,32 +440,41 @@ def produce_longform(
 
     music = audio_mix.pick_music(cfg.music_dir)
     if music is not None and music.exists():
-        audio_path = audio_mix.mix(voice_path, music, work / "audio_mixed.mp3")
+        mixed = audio_mix.mix(voice_path, music, work / "audio_mixed.mp3")
     else:
-        audio_path = voice_path
+        mixed = voice_path
 
-    duration = audio_duration_seconds(audio_path)
+    body = audio_duration_seconds(mixed)
     if render_beats:
         last = render_beats[-1]
-        render_beats[-1] = dataclasses.replace(last, duration=max(0.4, duration - last.start))
+        render_beats[-1] = dataclasses.replace(last, duration=max(0.4, body - last.start))
 
+    lead_in, tail = 0.9, 1.7
+    audio_path, duration = pad_and_polish_audio(
+        mixed, work / "audio_final.mp3", lead_in=lead_in, tail=tail
+    )
+    # shift captions to sit after the intro card / lead-in
+    caption_words = [captions.Word(wd.text, wd.start + lead_in, wd.end + lead_in)
+                     for wd in caption_words]
+
+    char = get_character(channel.character)
     w, h = dimensions(channel.fmt)
     mcfg = MontageConfig(
         width=w, height=h, fps=channel.fps, theme=channel.theme,
         shot_len=channel.shot_len, captions=True,
+        handle=channel.handle, channel_name=channel.name, tagline=channel.tagline,
+        cta_title="FOLLOW", intro=True, outro=True, lead_in=lead_in, tail=tail,
     )
     shots = beats_to_shots(render_beats, mcfg)
 
-    ass_path = None
-    if mcfg.captions:
-        ass_path = captions.write_ass(
-            caption_words, work / "captions.ass", width=w, height=h,
-            words_per_line=channel.words_per_caption, margin_v_frac=channel.caption_margin_frac,
-        )
+    ass_path = captions.write_ass_karaoke(
+        caption_words, work / "captions.ass", width=w, height=h,
+        accent=char.glow, margin_v_frac=channel.caption_margin_frac,
+    )
 
     video_path = ep_dir / "video.mp4"
     render_montage(
-        shots, get_character(channel.character), mcfg,
+        shots, char, mcfg,
         audio_path=audio_path, out_path=video_path, captions_ass=ass_path,
         progress=progress,
     )

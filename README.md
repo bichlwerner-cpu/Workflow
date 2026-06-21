@@ -199,6 +199,21 @@ Set it per video with `--character`, or as the channel default in
 
 ---
 
+## Production polish (built in)
+
+Every video gets a layer of finish automatically:
+
+1. **Branded intro card** — channel name + tagline + hero character (over a clean lead-in).
+2. **Branded outro card** — big `FOLLOW` + handle + character cheering.
+3. **Karaoke captions** — the spoken word is highlighted in your brand colour and tracks the voice.
+4. **Brand watermark** — your `@handle` on every frame (recognisability + anti-repost).
+5. **Stepped progress bar** — advances on each cut to pull viewers to the end.
+6. **Background variety** — neon grid / radial rays / dot field rotate so no two cuts look alike.
+7. **Ground shadow** — a soft contact shadow grounds the character.
+8. **Keyword styling** — chromatic punch + accent underline, alternating colours.
+9. **Film grain + scanlines** — subtle cinematic texture.
+10. **Audio mastering** — loudness-normalised, faded in/out, music ducked under the voice.
+
 ## Voice & captions
 
 | `TTS_PROVIDER` | network | key | quality | word timings |

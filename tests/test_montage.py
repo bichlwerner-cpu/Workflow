@@ -17,12 +17,17 @@ from yt_automation.stickman.montage import (
     beats_to_shots,
     render_shot,
 )
+from yt_automation.stickman.montage import render_card
 from yt_automation.stickman.render import (
+    apply_texture,
     build_vignette_mask,
     draw_figure,
+    draw_progress_bar,
+    draw_watermark,
     get_theme,
     make_base_background,
 )
+from yt_automation import captions
 from yt_automation.stickman.poses import POSES
 from yt_automation.stickman.scene import Beat
 from yt_automation.stickman.skeleton import Skeleton, resolve
@@ -78,6 +83,46 @@ def test_render_shot_image_size_and_brightness():
     shot = Shot(pose=POSES["power"], duration=2.0, framing="full",
                 keyword="WAIT", keyword_big=True, energy=0.9)
     img = render_shot(shot, get_character("iko"), cfg, base_for=base_for,
-                      vmask=vmask, vblack=vblack, W=W, H=H, skel=skel)
+                      vmask=vmask, vblack=vblack, W=W, H=H, skel=skel,
+                      handle="@brand", progress=0.5, texture=True)
     assert img.size == (W, H)
     assert img.convert("L").getextrema()[1] > 200   # the figure is visible
+
+
+def test_render_card_image():
+    W, H = 360, 640
+    theme = get_theme("midnight")
+    skel = Skeleton()
+    vmask = build_vignette_mask(W, H, 0.9)
+    vblack = Image.new("RGB", (W, H), (0, 0, 0))
+    cache: dict[int, Image.Image] = {}
+
+    def base_for(e: float) -> Image.Image:
+        k = int(round(e * 10))
+        return cache.setdefault(k, make_base_background(W, H, theme, energy=k / 10))
+
+    cfg = MontageConfig(width=W, height=H, theme="midnight")
+    img = render_card("intro", "MIND MECHANICS", "the psychology they never taught you",
+                      get_character("halo"), cfg, base_for=base_for, vmask=vmask,
+                      vblack=vblack, W=W, H=H, skel=skel, handle="@mm")
+    assert img.size == (W, H)
+
+
+def test_texture_and_overlays_preserve_size():
+    img = make_base_background(200, 360, get_theme("midnight"), energy=0.6)
+    out = apply_texture(img, grain=0.05, scanlines=True, seed=1)
+    assert out.size == (200, 360)
+    draw_watermark(out, "@brand", get_theme("midnight"))
+    draw_progress_bar(out, get_theme("midnight"), 0.5)
+
+
+def test_karaoke_captions_have_accent_and_events():
+    words = [captions.Word("one", 0.0, 0.4), captions.Word("two", 0.4, 0.8),
+             captions.Word("three", 0.8, 1.2), captions.Word("four", 1.2, 1.6)]
+    out = captions.write_ass_karaoke(
+        words, __import__("pathlib").Path("/tmp/_kar_test.ass"),
+        width=1080, height=1920, accent=(0, 224, 255),
+    )
+    text = out.read_text()
+    assert "&H00FFE000" in text          # accent (cyan) as BGR
+    assert text.count("Dialogue:") == len(words)

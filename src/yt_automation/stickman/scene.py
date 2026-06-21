@@ -19,15 +19,19 @@ from pathlib import Path
 from PIL import Image
 
 from .actions import get_action
+from .character import Character, draw_accessories, get_character
 from .render import (
     Theme,
     apply_flash,
+    apply_texture,
     apply_vignette_mask,
     build_vignette_mask,
     draw_figure,
     draw_grid,
+    draw_ground_shadow,
     draw_keyword,
     draw_motion_lines,
+    draw_watermark,
     get_theme,
     make_base_background,
 )
@@ -54,6 +58,9 @@ class RenderConfig:
     ground_frac: float = 0.82     # where the feet sit
     supersample: int = 1          # 2 = smoother lines at ~4x cost
     seed: int = 7
+    character: str = "halo"       # brand mascot drawn every frame
+    watermark: str = ""           # brand handle, bottom-right
+    texture: bool = True          # film grain + scanlines
 
 
 def _ground_root(cfg: RenderConfig, skel: Skeleton, scale: float) -> tuple[float, float]:
@@ -83,6 +90,7 @@ def render_storyboard(
         raise ValueError("storyboard has no beats")
     theme = get_theme(cfg.theme)
     skel = Skeleton()
+    character = get_character(cfg.character)
     rng = random.Random(cfg.seed)
 
     ss = max(1, cfg.supersample)
@@ -117,7 +125,7 @@ def render_storyboard(
         beat = beats[bi]
         local = t - beat.start
         img = _render_frame(t, local, beat, theme, skel, scale, base_root,
-                            W, H, rng, cfg, base_for, vmask, vblack)
+                            W, H, rng, cfg, base_for, vmask, vblack, character)
         if ss > 1:
             img = img.resize((cfg.width, cfg.height), Image.LANCZOS)
         img.save(frames_dir / f"f{fi:05d}.png")
@@ -140,7 +148,7 @@ def render_storyboard(
 
 
 def _render_frame(t, local, beat, theme, skel, scale, base_root, W, H, rng, cfg,
-                  base_for, vmask, vblack) -> Image.Image:
+                  base_for, vmask, vblack, character: Character) -> Image.Image:
     action = get_action(beat.action)
     energy = max(action.energy, beat.intensity)
 
@@ -178,7 +186,9 @@ def _render_frame(t, local, beat, theme, skel, scale, base_root, W, H, rng, cfg,
         )
 
     draw_motion_lines(img, j, theme, frame.motion)
-    draw_figure(img, j, color=theme.figure, glow_color=theme.accent if theme.glow else None)
+    draw_ground_shadow(img, j, theme)
+    draw_figure(img, j, color=character.body, glow_color=character.glow if theme.glow else None)
+    draw_accessories(img, j, character)
 
     # kinetic keyword: pop in over first 0.25s, hold
     if beat.keyword:
@@ -205,6 +215,11 @@ def _render_frame(t, local, beat, theme, skel, scale, base_root, W, H, rng, cfg,
                 img.size, Image.AFFINE, (1, 0, ox, 0, 1, oy),
                 resample=Image.BILINEAR,
             )
+
+    if cfg.texture:
+        img = apply_texture(img, grain=0.03, scanlines=True, seed=int(local * 90))
+    if cfg.watermark:
+        draw_watermark(img, cfg.watermark, theme)
     return img
 
 

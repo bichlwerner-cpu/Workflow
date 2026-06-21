@@ -257,14 +257,17 @@ def draw_keyword(
     scale: float = 1.0,
     alpha: float = 1.0,
     y_frac: float = 0.2,
+    underline: bool = True,
+    accent=None,
 ) -> None:
-    """Big kinetic keyword near the top — punches in per beat."""
+    """Big kinetic keyword — chromatic punch + an accent underline bar."""
     if not text or alpha <= 0.02:
         return
     w, h = img.size
     base = int(h * 0.052)
     size = max(12, int(base * scale))
     txt = text.upper()
+    accent = accent or theme.accent
 
     layer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     ld = ImageDraw.Draw(layer)
@@ -283,8 +286,14 @@ def draw_keyword(
     a = int(255 * max(0.0, min(1.0, alpha)))
     # accent shadow / chromatic offset for punch
     ld.text((x + 5, y + 5), txt, font=font, fill=theme.accent2 + (int(a * 0.55),))
-    ld.text((x - 4, y), txt, font=font, fill=theme.accent + (int(a * 0.6),))
+    ld.text((x - 4, y), txt, font=font, fill=accent + (int(a * 0.6),))
     ld.text((x, y), txt, font=font, fill=theme.keyword + (a,))
+    if underline:
+        bar_y = y + bbox[3] + int(size * 0.18)
+        bar_w = min(int(tw * 0.5), int(w * 0.34))
+        cx = w // 2
+        ld.rectangle([cx - bar_w // 2, bar_y, cx + bar_w // 2, bar_y + max(4, size // 14)],
+                     fill=accent + (a,))
     img.paste(Image.alpha_composite(img.convert("RGBA"), layer).convert("RGB"), (0, 0))
 
 
@@ -294,3 +303,120 @@ def apply_flash(img: Image.Image, theme: Theme, amount: float) -> Image.Image:
     a = int(200 * min(1.0, amount))
     overlay = Image.new("RGB", img.size, theme.accent)
     return Image.blend(img, overlay, a / 255.0)
+
+
+# ----------------------------------------------------------------------------
+# Polish: shadow, background variants, texture, watermark, progress bar
+# ----------------------------------------------------------------------------
+
+
+def draw_ground_shadow(img: Image.Image, j: Joints, theme: Theme) -> None:
+    """Soft elliptical contact shadow under the feet — grounds the figure."""
+    feet_y = max(j.foot_l[1], j.foot_r[1])
+    if feet_y > img.size[1] * 1.02:           # feet off-frame (close-up) -> skip
+        return
+    cx = (j.foot_l[0] + j.foot_r[0]) / 2
+    span = abs(j.foot_l[0] - j.foot_r[0])
+    rw = max(j.head_radius * 1.6, span * 0.9 + j.head_radius)
+    rh = j.head_radius * 0.5
+    layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    ImageDraw.Draw(layer).ellipse(
+        [cx - rw, feet_y - rh, cx + rw, feet_y + rh], fill=(0, 0, 0, 150)
+    )
+    layer = layer.filter(ImageFilter.GaussianBlur(int(j.head_radius * 0.35)))
+    img.paste(Image.alpha_composite(img.convert("RGBA"), layer).convert("RGB"), (0, 0))
+
+
+def draw_rays(img: Image.Image, theme: Theme, *, energy: float = 0.6, seed: int = 0) -> None:
+    """Radial burst lines behind the subject — high-energy 'reveal' background."""
+    w, h = img.size
+    cx, cy = w * 0.5, h * 0.46
+    layer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    d = ImageDraw.Draw(layer)
+    a = int(26 + 30 * energy)
+    n = 24
+    for i in range(n):
+        ang = (i / n) * 2 * math.pi + (seed % 7) * 0.12
+        x2 = cx + math.cos(ang) * w
+        y2 = cy + math.sin(ang) * w
+        col = theme.accent if i % 2 == 0 else theme.grid
+        d.line([(cx, cy), (x2, y2)], fill=col + (a,), width=max(2, int(w * 0.02)))
+    img.paste(Image.alpha_composite(img.convert("RGBA"), layer).convert("RGB"), (0, 0))
+
+
+def draw_dots(img: Image.Image, theme: Theme, *, energy: float = 0.5, seed: int = 0) -> None:
+    """Faint drifting dot field — calmer 'thinking' background."""
+    import random as _r
+    w, h = img.size
+    rng = _r.Random(seed)
+    d = ImageDraw.Draw(img, "RGBA")
+    a = int(40 + 40 * energy)
+    step = int(min(w, h) * 0.11)
+    rad = max(2, int(min(w, h) * 0.006))
+    for gx in range(step // 2, w, step):
+        for gy in range(step // 2, h, step):
+            ox = rng.randint(-step // 6, step // 6)
+            oy = rng.randint(-step // 6, step // 6)
+            d.ellipse([gx + ox - rad, gy + oy - rad, gx + ox + rad, gy + oy + rad],
+                      fill=theme.grid + (a,))
+
+
+def draw_midground(img: Image.Image, theme: Theme, *, variant: str = "grid",
+                   t: float = 0.0, energy: float = 0.5, seed: int = 0) -> None:
+    """Pick a background motif so consecutive shots don't all look identical."""
+    if variant == "rays":
+        draw_rays(img, theme, energy=energy, seed=seed)
+    elif variant == "dots":
+        draw_dots(img, theme, energy=energy, seed=seed)
+    else:
+        draw_grid(img, theme, t=t, energy=energy)
+
+
+_GRAIN_CACHE: dict[tuple[int, int, int], Image.Image] = {}
+
+
+def apply_texture(img: Image.Image, *, grain: float = 0.05, scanlines: bool = True,
+                  seed: int = 0) -> Image.Image:
+    """Cinematic polish: subtle film grain + faint scanlines."""
+    w, h = img.size
+    if grain > 0:
+        key = (w, h, seed % 6)
+        noise = _GRAIN_CACHE.get(key)
+        if noise is None:
+            noise = Image.effect_noise((w, h), 48).convert("RGB")
+            _GRAIN_CACHE[key] = noise
+        img = Image.blend(img, noise, grain)
+    if scanlines:
+        layer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        d = ImageDraw.Draw(layer)
+        for y in range(0, h, 3):
+            d.line([(0, y), (w, y)], fill=(0, 0, 0, 22), width=1)
+        img = Image.alpha_composite(img.convert("RGBA"), layer).convert("RGB")
+    return img
+
+
+def draw_watermark(img: Image.Image, handle: str, theme: Theme) -> None:
+    """Small brand handle in the bottom-right — recognisability + anti-repost."""
+    if not handle:
+        return
+    w, h = img.size
+    font = load_font(max(14, int(h * 0.022)))
+    layer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    d = ImageDraw.Draw(layer)
+    bbox = d.textbbox((0, 0), handle, font=font)
+    tw = bbox[2] - bbox[0]
+    x, y = w - tw - int(w * 0.04), int(h * 0.035)
+    d.text((x + 2, y + 2), handle, font=font, fill=(0, 0, 0, 120))
+    d.text((x, y), handle, font=font, fill=theme.figure + (150,))
+    img.paste(Image.alpha_composite(img.convert("RGBA"), layer).convert("RGB"), (0, 0))
+
+
+def draw_progress_bar(img: Image.Image, theme: Theme, fraction: float) -> None:
+    """Thin bottom progress bar that advances on every cut (watch-to-the-end)."""
+    w, h = img.size
+    frac = max(0.0, min(1.0, fraction))
+    bar_h = max(4, int(h * 0.006))
+    y0 = h - bar_h
+    d = ImageDraw.Draw(img, "RGBA")
+    d.rectangle([0, y0, w, h], fill=theme.grid + (140,))
+    d.rectangle([0, y0, int(w * frac), h], fill=theme.accent + (255,))
