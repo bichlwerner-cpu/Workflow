@@ -50,7 +50,7 @@ class ChannelConfig:
     words_per_caption: int = 1
     caption_margin_frac: float = 0.10   # caption distance from bottom (lower third)
     # brand mascot + montage (long-form, still-image cut) settings
-    character: str = "iko"              # recurring character preset (the brand)
+    character: str = "halo"             # recurring character preset (the brand)
     shot_len: float = 1.9               # avg seconds per hard cut in montage mode
     # optional TTS overrides applied on top of .env Config
     tts_provider: str | None = None

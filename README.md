@@ -97,7 +97,7 @@ word-by-word captions.
 
 ```bash
 # a 5-minute montage video (offline 'N facts' compilation if no Claude key):
-yt-automation channel longform --minutes 5 --character iko
+yt-automation channel longform --minutes 5 --character halo
 
 # a single-topic deep dive (needs ANTHROPIC_API_KEY for the long script):
 yt-automation channel longform "The psychology of self-sabotage" --minutes 6
@@ -184,9 +184,9 @@ yt-automation stickman characters
 
 | preset | trademark |
 |---|---|
-| `iko` | magenta **headband + shades** (default) |
+| `halo` | glowing **antenna** (default) |
+| `iko` | magenta **headband + shades** |
 | `boss` | gold **crown + shades** |
-| `halo` | glowing **antenna** |
 | `sage` | **glasses** |
 | `rookie` | **cap** |
 | `cyber` | **visor** |
