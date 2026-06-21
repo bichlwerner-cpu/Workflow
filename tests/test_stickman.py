@@ -61,6 +61,17 @@ def test_get_action_aliases_and_fallback():
     assert get_action(None).name == "idle"
 
 
+def test_signature_poses_resolve():
+    from yt_automation.stickman.poses import SIGNATURE_POSES
+    assert len(SIGNATURE_POSES) >= 4
+    for name in SIGNATURE_POSES:
+        assert name in POSES
+        assert name in ACTIONS                 # also usable as an action
+    # signature aliases route correctly
+    assert get_action("mindblown").name == "mind_blown"
+    assert get_action("cool").name == "lean"
+
+
 def test_frame_renders_to_image():
     theme = get_theme("midnight")
     img = make_background(360, 640, theme, energy=0.7)

@@ -220,6 +220,47 @@ ACTIONS: dict[str, Action] = {
         ],
         energy=0.9,
     ),
+    # --- signature / character actions ---
+    "mind_blown": Action(
+        "mind_blown",
+        [
+            (0.0, _f(P.STAND)),
+            (0.45, _f(P.MIND_BLOWN, dy=-0.05, scale=1.06, motion=0.6)),
+            (0.7, _f(P.MIND_BLOWN, dy=-0.01)),
+            (1.0, _f(P.MIND_BLOWN, dy=-0.03, scale=1.03)),
+        ],
+        ease="overshoot", energy=0.95,
+    ),
+    "salute": Action(
+        "salute",
+        [(0.0, _f(P.STAND)), (0.6, _f(P.SALUTE)), (1.0, _f(P.SALUTE, dx=0.004))],
+        energy=0.6,
+    ),
+    "finger_guns": Action(
+        "finger_guns",
+        [(0.0, _f(P.STAND)), (1.0, _f(P.FINGER_GUNS, scale=1.02))],
+        ease="overshoot", energy=0.75,
+    ),
+    "mic_drop": Action(
+        "mic_drop",
+        [
+            (0.0, _f(P.POWER)),
+            (0.5, _f(P.MIC_DROP, scale=1.03)),
+            (0.7, _f(P.MIC_DROP, dy=0.01, motion=0.6)),
+            (1.0, _f(P.MIC_DROP)),
+        ],
+        ease="overshoot", energy=0.9,
+    ),
+    "lean": Action(
+        "lean",
+        [(0.0, _f(P.STAND)), (0.6, _f(P.LEAN)), (1.0, _f(P.LEAN, dx=0.004))],
+        energy=0.55,
+    ),
+    "arms_crossed": Action(
+        "arms_crossed",
+        [(0.0, _f(P.STAND)), (0.6, _f(P.ARMS_CROSSED)), (1.0, _f(P.ARMS_CROSSED))],
+        energy=0.6,
+    ),
 }
 
 # Friendly aliases the script generator may emit.
@@ -231,6 +272,10 @@ ALIASES = {
     "strong": "power", "confident": "power", "leap": "jump",
     "emphasis": "stomp", "intense": "stomp", "walk": "walk", "run": "run",
     "idle": "idle", "stand": "idle", "think": "think",
+    "mindblown": "mind_blown", "shocked": "mind_blown", "wow": "mind_blown",
+    "cool": "lean", "casual": "lean", "fingerguns": "finger_guns",
+    "drop": "mic_drop", "micdrop": "mic_drop", "crossed": "arms_crossed",
+    "skeptical": "arms_crossed", "respect": "salute",
 }
 
 

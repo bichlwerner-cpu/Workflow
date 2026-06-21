@@ -107,6 +107,20 @@ yt-automation channel longform "The psychology of self-sabotage" --minutes 6
 `--source auto|claude|compilation`, `--shot-len 1.8` (avg seconds per cut —
 lower is faster-paced), `--theme`, `--fps`.
 
+Every polish layer is dial-able (all on by default):
+
+```bash
+# minimal/raw look:
+yt-automation channel longform --no-grain --no-progress --no-watermark
+# keep cards & captions but no signature poses:
+yt-automation channel longform --no-signature
+```
+
+`--intro/--no-intro`, `--outro/--no-outro`, `--progress/--no-progress`,
+`--grain/--no-grain`, `--watermark/--no-watermark`, `--captions/--no-captions`,
+`--signature/--no-signature`. (`channel episode` takes `--grain` / `--watermark`
+/ `--character` too.)
+
 ## The channel commands
 
 ```bash
@@ -196,6 +210,10 @@ Set it per video with `--character`, or as the channel default in
 (`headband/cap/beanie/crown/horns/antenna`), eyewear
 (`shades/glasses/visor`) and props (`bowtie/scarf`) — define your own in
 `stickman/character.py` for a unique mascot.
+
+**Signature poses.** Punchy/emphasis beats drop in distinctive brand poses
+(`mind_blown`, `finger_guns`, `salute`, `mic_drop`, `lean`, `arms_crossed`) for
+recognisable flavour. Disable with `--no-signature`.
 
 ---
 

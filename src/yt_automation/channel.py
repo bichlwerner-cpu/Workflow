@@ -343,6 +343,8 @@ def produce_episode(
     source: str = "auto",
     out_dir: Path | None = None,
     publish_at: datetime | None = None,
+    grain: bool = True,
+    watermark: bool = True,
     progress=None,
 ) -> EpisodeResult:
     cfg = _apply_channel_to_config(cfg, channel)
@@ -379,7 +381,7 @@ def produce_episode(
     rcfg = RenderConfig(
         width=w, height=h, fps=channel.fps, theme=channel.theme,
         supersample=channel.supersample, character=channel.character,
-        watermark=channel.handle,
+        watermark=channel.handle if watermark else "", texture=grain,
     )
     bg_path = render_storyboard(render_beats, work / "stickman_bg.mp4", rcfg, progress=progress)
 
@@ -408,6 +410,19 @@ def produce_episode(
     )
 
 
+@dataclass
+class Polish:
+    """Toggle the production-polish layers (all on by default)."""
+
+    intro: bool = True
+    outro: bool = True
+    progress: bool = True
+    grain: bool = True
+    watermark: bool = True
+    captions: bool = True
+    signature_poses: bool = True
+
+
 def produce_longform(
     cfg: Config,
     *,
@@ -418,6 +433,7 @@ def produce_longform(
     source: str = "auto",
     out_dir: Path | None = None,
     publish_at: datetime | None = None,
+    polish: "Polish | None" = None,
     progress=None,
 ) -> EpisodeResult:
     """Produce a 4-6 min montage video: many still shots of the brand character,
@@ -425,6 +441,8 @@ def produce_longform(
     from .content.psychology import generate_longform
     from .stickman.character import get_character
     from .stickman.montage import MontageConfig, beats_to_shots, render_montage
+
+    polish = polish or Polish()
 
     cfg = _apply_channel_to_config(cfg, channel)
     script = generate_longform(
@@ -449,7 +467,8 @@ def produce_longform(
         last = render_beats[-1]
         render_beats[-1] = dataclasses.replace(last, duration=max(0.4, body - last.start))
 
-    lead_in, tail = 0.9, 1.7
+    lead_in = 0.9 if polish.intro else 0.0
+    tail = 1.7 if polish.outro else 0.3
     audio_path, duration = pad_and_polish_audio(
         mixed, work / "audio_final.mp3", lead_in=lead_in, tail=tail
     )
@@ -461,16 +480,21 @@ def produce_longform(
     w, h = dimensions(channel.fmt)
     mcfg = MontageConfig(
         width=w, height=h, fps=channel.fps, theme=channel.theme,
-        shot_len=channel.shot_len, captions=True,
+        shot_len=channel.shot_len, captions=polish.captions,
         handle=channel.handle, channel_name=channel.name, tagline=channel.tagline,
-        cta_title="FOLLOW", intro=True, outro=True, lead_in=lead_in, tail=tail,
+        cta_title="FOLLOW", intro=polish.intro, outro=polish.outro,
+        lead_in=lead_in, tail=tail, progress_bar=polish.progress,
+        texture=polish.grain, watermark=polish.watermark,
+        signature_poses=polish.signature_poses,
     )
     shots = beats_to_shots(render_beats, mcfg)
 
-    ass_path = captions.write_ass_karaoke(
-        caption_words, work / "captions.ass", width=w, height=h,
-        accent=char.glow, margin_v_frac=channel.caption_margin_frac,
-    )
+    ass_path = None
+    if polish.captions:
+        ass_path = captions.write_ass_karaoke(
+            caption_words, work / "captions.ass", width=w, height=h,
+            accent=char.glow, margin_v_frac=channel.caption_margin_frac,
+        )
 
     video_path = ep_dir / "video.mp4"
     render_montage(

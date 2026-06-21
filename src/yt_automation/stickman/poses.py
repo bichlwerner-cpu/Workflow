@@ -142,6 +142,45 @@ AIRBORNE = Pose(
     pelvis_dy=-0.02, squash=1.06,
 )
 
+# --- Signature / character poses -------------------------------------------
+MIND_BLOWN = Pose(
+    torso=0, head=-4,
+    arm_l_upper=325, arm_l_fore=300,
+    arm_r_upper=35, arm_r_fore=60,
+    leg_l_upper=196, leg_r_upper=164,
+    squash=1.03, pelvis_dy=-0.02,
+)
+SALUTE = Pose(
+    torso=2,
+    arm_r_upper=78, arm_r_fore=345,
+    arm_l_upper=200, arm_l_fore=198,
+    leg_l_upper=193, leg_r_upper=171,
+)
+FINGER_GUNS = Pose(
+    torso=6,
+    arm_r_upper=92, arm_r_fore=88,
+    arm_l_upper=104, arm_l_fore=100,
+    leg_l_upper=198, leg_r_upper=166,
+)
+MIC_DROP = Pose(
+    torso=-8, head=-6,
+    arm_r_upper=120, arm_r_fore=150,
+    arm_l_upper=215, arm_l_fore=235,
+    leg_l_upper=205, leg_r_upper=160,
+)
+LEAN = Pose(
+    torso=12, head=-4,
+    arm_r_upper=150, arm_r_fore=110,
+    arm_l_upper=205, arm_l_fore=205,
+    leg_l_upper=185, leg_l_lower=183, leg_r_upper=166, leg_r_lower=178,
+)
+ARMS_CROSSED = Pose(
+    torso=0,
+    arm_l_upper=205, arm_l_fore=86,
+    arm_r_upper=155, arm_r_fore=274,
+    leg_l_upper=193, leg_r_upper=171,
+)
+
 POSES: dict[str, Pose] = {
     "stand": STAND, "breathe_a": BREATHE_A, "breathe_b": BREATHE_B,
     "walk_contact_r": WALK_CONTACT_R, "walk_pass": WALK_PASS,
@@ -150,4 +189,11 @@ POSES: dict[str, Pose] = {
     "idea": IDEA, "shrug": SHRUG, "cheer": CHEER, "panic": PANIC,
     "facepalm": FACEPALM, "punch": PUNCH, "power": POWER, "crouch": CROUCH,
     "collapse": COLLAPSE, "jump_tuck": JUMP_TUCK, "airborne": AIRBORNE,
+    "mind_blown": MIND_BLOWN, "salute": SALUTE, "finger_guns": FINGER_GUNS,
+    "mic_drop": MIC_DROP, "lean": LEAN, "arms_crossed": ARMS_CROSSED,
 }
+
+# Signature poses used to add brand flavour on punchy/emphasis shots.
+SIGNATURE_POSES: list[str] = [
+    "mind_blown", "finger_guns", "salute", "mic_drop", "lean", "arms_crossed",
+]

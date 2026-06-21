@@ -89,6 +89,8 @@ class MontageConfig:
     tail: float = 1.7              # outro card duration
     progress_bar: bool = True
     texture: bool = True
+    watermark: bool = True
+    signature_poses: bool = True
 
 
 def beats_to_shots(beats: list[Beat], cfg: MontageConfig) -> list[Shot]:
@@ -96,24 +98,31 @@ def beats_to_shots(beats: list[Beat], cfg: MontageConfig) -> list[Shot]:
     rng = random.Random(cfg.seed)
     shots: list[Shot] = []
     ri = 0
+    sig = 0
     for bi, beat in enumerate(beats):
         action = get_action(beat.action)
         n = max(1, round(beat.duration / cfg.shot_len))
         dur = beat.duration / n
         variant = _BG_VARIANTS[bi % len(_BG_VARIANTS)]
         for k in range(n):
-            # sample the action pose at a lively phase so each shot differs
-            phase = 0.4 + 0.55 * ((k + 0.5) / n)
-            pose = action.sample(phase * max(beat.duration, 0.01), beat.duration).pose
+            first = (k == 0)
+            big = bool(first and beat.intensity >= 0.82)
+            # sample the action pose at a lively phase so each shot differs;
+            # on big emphasis beats, drop in a brand signature pose for flavour.
+            if big and cfg.signature_poses and P.SIGNATURE_POSES:
+                pose = P.POSES[P.SIGNATURE_POSES[sig % len(P.SIGNATURE_POSES)]]
+                sig += 1
+            else:
+                phase = 0.4 + 0.55 * ((k + 0.5) / n)
+                pose = action.sample(phase * max(beat.duration, 0.01), beat.duration).pose
             framing = _ROTATION[ri % len(_ROTATION)]
             ri += 1
-            first = (k == 0)
             shots.append(Shot(
                 pose=pose,
                 duration=dur,
                 framing=framing,
                 keyword=beat.keyword if first else None,
-                keyword_big=bool(first and beat.intensity >= 0.82),
+                keyword_big=big,
                 energy=max(action.energy, beat.intensity),
                 flip=(rng.random() < 0.18),
                 bg_variant=variant,
@@ -282,10 +291,11 @@ def render_montage(
                            handle=cfg.handle)
         _save(card, cfg.lead_in)
 
+    wm = cfg.handle if cfg.watermark else ""
     for i, shot in enumerate(shots):
         frac = (cum + shot.duration / 2) / total if cfg.progress_bar else None
         img = render_shot(shot, character, cfg, base_for=base_for, vmask=vmask,
-                          vblack=vblack, W=W, H=H, skel=skel, handle=cfg.handle,
+                          vblack=vblack, W=W, H=H, skel=skel, handle=wm,
                           progress=frac, texture=cfg.texture)
         _save(img, shot.duration)
         if progress and i % 20 == 0:

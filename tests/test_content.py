@@ -28,6 +28,7 @@ def test_topic_bank_nonempty():
 
 
 def test_curated_scripts_are_valid():
+    assert len(CURATED) >= 15            # library expanded
     for key, script in CURATED.items():
         assert 5 <= len(script.beats) <= 14, key
         assert script.title and script.tags

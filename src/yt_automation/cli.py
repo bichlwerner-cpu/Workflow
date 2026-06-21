@@ -252,6 +252,9 @@ def channel_episode(
     theme: Annotated[Optional[str], typer.Option(help="Override visual theme.")] = None,
     fps: Annotated[Optional[int], typer.Option(help="Override frames per second.")] = None,
     supersample: Annotated[int, typer.Option(help="2 = smoother lines, ~4x slower.")] = 1,
+    character: Annotated[Optional[str], typer.Option(help="Brand mascot preset.")] = None,
+    grain: Annotated[bool, typer.Option("--grain/--no-grain", help="Film grain + scanlines.")] = True,
+    watermark: Annotated[bool, typer.Option("--watermark/--no-watermark", help="@handle watermark.")] = True,
 ) -> None:
     """Produce one finished stickman episode (video + thumbnail + metadata)."""
     from .channel import get_preset, produce_episode
@@ -262,12 +265,15 @@ def channel_episode(
         ch.theme = theme
     if fps:
         ch.fps = fps
+    if character:
+        ch.character = character
     ch.supersample = supersample
 
     console.print(f"[bold]Channel:[/bold] {ch.name} ({ch.handle})  "
                   f"[bold]theme:[/bold] {ch.theme}  [bold]source:[/bold] {source}")
     with console.status("Producing episode (script → voice → animation → caption → render)..."):
-        res = produce_episode(cfg, channel=ch, topic=topic, source=source)
+        res = produce_episode(cfg, channel=ch, topic=topic, source=source,
+                              grain=grain, watermark=watermark)
 
     console.print(f"\n[bold]{res.script.title}[/bold]")
     console.print(f"[green]✓[/green] Video     -> {res.video_path}")
@@ -286,10 +292,17 @@ def channel_longform(
     shot_len: Annotated[float, typer.Option(help="Avg seconds per cut (smaller = faster).")] = 1.9,
     theme: Annotated[Optional[str], typer.Option()] = None,
     fps: Annotated[Optional[int], typer.Option()] = None,
+    intro: Annotated[bool, typer.Option("--intro/--no-intro", help="Branded intro card.")] = True,
+    outro: Annotated[bool, typer.Option("--outro/--no-outro", help="Branded outro card.")] = True,
+    progress_bar: Annotated[bool, typer.Option("--progress/--no-progress", help="Progress bar.")] = True,
+    grain: Annotated[bool, typer.Option("--grain/--no-grain", help="Film grain + scanlines.")] = True,
+    watermark: Annotated[bool, typer.Option("--watermark/--no-watermark", help="@handle watermark.")] = True,
+    captions_on: Annotated[bool, typer.Option("--captions/--no-captions", help="Karaoke captions.")] = True,
+    signature: Annotated[bool, typer.Option("--signature/--no-signature", help="Signature brand poses.")] = True,
 ) -> None:
     """Produce a 4-6 min MONTAGE: 150+ still shots of the brand character, hard-cut
     to the voiceover with music + captions. No animation — just images stitched."""
-    from .channel import get_preset, produce_longform
+    from .channel import Polish, get_preset, produce_longform
 
     cfg = Config.load()
     ch = get_preset(preset)
@@ -300,11 +313,14 @@ def channel_longform(
     if character:
         ch.character = character
     ch.shot_len = shot_len
+    pol = Polish(intro=intro, outro=outro, progress=progress_bar, grain=grain,
+                 watermark=watermark, captions=captions_on, signature_poses=signature)
 
     console.print(f"[bold]{ch.name}[/bold] · character [bold]{ch.character}[/bold] · "
                   f"theme {ch.theme} · ~{minutes} min · source {source}")
     with console.status("Producing long-form montage (script → voice → 150+ shots → cut)..."):
-        res = produce_longform(cfg, channel=ch, topic=topic, minutes=minutes, source=source)
+        res = produce_longform(cfg, channel=ch, topic=topic, minutes=minutes,
+                               source=source, polish=pol)
 
     console.print(f"\n[bold]{res.script.title}[/bold]")
     console.print(f"[green]✓[/green] Video     -> {res.video_path}")
