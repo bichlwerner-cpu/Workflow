@@ -24,7 +24,7 @@ think, idea, punch, power, fall, jump …). That's what makes it read as
 ## Quickstart (free, ~zero setup)
 
 ```bash
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+python -m venv .venv && source .venv/bin/activate   # macOS/Linux
 pip install -e .
 cp .env.example .env
 
@@ -33,6 +33,29 @@ yt-automation channel episode "The Spotlight Effect"
 
 # a whole content batch with a publish schedule:
 yt-automation channel batch --count 5
+```
+
+### Windows (PowerShell)
+
+PowerShell 5.1 has no `&&`, and the `yt-automation` command only exists after a
+successful install — so run the steps one per line **inside the repo folder**
+(the one containing `pyproject.toml`):
+
+```powershell
+cd path\to\Workflow
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1        # if blocked: Set-ExecutionPolicy -Scope Process -Bypass
+pip install -e .
+Copy-Item .env.example .env
+
+yt-automation channel episode "The Spotlight Effect"
+```
+
+If `yt-automation` is still "not recognized" (Scripts dir not on PATH), use the
+module form — it always works once installed:
+
+```powershell
+python -m yt_automation.cli channel episode "The Spotlight Effect"
 ```
 
 Output lands in `out/episodes/<slug>/`:
@@ -46,7 +69,11 @@ out/episodes/nobody-is-watching-you/
 └── work/            # intermediate voiceover, captions, animation bg
 ```
 
-**Requirements:** `ffmpeg` + `ffprobe` on `PATH`. For the fully-offline voice,
+**Requirements:** `ffmpeg` + `ffprobe` on `PATH`.
+- Windows: `winget install Gyan.FFmpeg` (then open a new terminal)
+- macOS: `brew install ffmpeg`  ·  Debian/Ubuntu: `apt-get install ffmpeg`
+
+For the fully-offline voice,
 also install `espeak-ng` (`apt-get install espeak-ng` / `brew install
 espeak-ng`) and set `TTS_PROVIDER=local`. The default `edge` voice needs
 internet but no API key.
