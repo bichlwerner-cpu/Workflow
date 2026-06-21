@@ -264,11 +264,17 @@ def draw_keyword(
     w, h = img.size
     base = int(h * 0.052)
     size = max(12, int(base * scale))
-    font = load_font(size)
     txt = text.upper()
 
     layer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     ld = ImageDraw.Draw(layer)
+    # shrink to fit the frame width (long words / big emphasis keywords)
+    font = load_font(size)
+    max_w = w * 0.92
+    tw = ld.textbbox((0, 0), txt, font=font)[2] - ld.textbbox((0, 0), txt, font=font)[0]
+    if tw > max_w:
+        size = max(12, int(size * max_w / tw))
+        font = load_font(size)
     bbox = ld.textbbox((0, 0), txt, font=font)
     tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
     x = (w - tw) // 2 - bbox[0]

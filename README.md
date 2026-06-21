@@ -80,13 +80,42 @@ internet but no API key.
 
 ---
 
+## Two formats
+
+| | **Shorts (animation)** | **Long-form (montage)** |
+|---|---|---|
+| command | `channel episode` | `channel longform` |
+| length | 20-60 s | 4-6 min |
+| visuals | procedurally **animated** stickman | 150+ **still shots**, hard-cut to the VO |
+| best for | TikTok / Reels / Shorts | YouTube long-form, building a brand |
+
+The long-form montage is exactly "no animation, just images stitched together":
+each spoken sentence is split into several **still shots** of the same recurring
+character in different poses and camera framings (full / close-up / left / right
+/ hero), hard-cut on the beat, over the voiceover with ducked music and
+word-by-word captions.
+
+```bash
+# a 5-minute montage video (offline 'N facts' compilation if no Claude key):
+yt-automation channel longform --minutes 5 --character iko
+
+# a single-topic deep dive (needs ANTHROPIC_API_KEY for the long script):
+yt-automation channel longform "The psychology of self-sabotage" --minutes 6
+```
+
+`channel longform` options: `--minutes`, `--preset`, `--character`,
+`--source auto|claude|compilation`, `--shot-len 1.8` (avg seconds per cut —
+lower is faster-paced), `--theme`, `--fps`.
+
 ## The channel commands
 
 ```bash
-yt-automation channel episode [TOPIC]      # produce one episode
-yt-automation channel batch --count N      # produce N episodes + schedule
+yt-automation channel episode [TOPIC]      # one animated short
+yt-automation channel longform [TOPIC]     # 4-6 min montage (still-image cut)
+yt-automation channel batch --count N      # N shorts + a publish schedule
 yt-automation channel topics               # the built-in psychology topic bank
-yt-automation channel presets              # available channel presets
+yt-automation channel presets              # channel presets
+yt-automation stickman characters          # brand mascot presets
 yt-automation channel upload <dir>         # upload an episode (or --dry-run)
 ```
 
@@ -143,6 +172,30 @@ panic, facepalm, punch, power, fall, jump, stomp` (plus aliases like `reveal`,
 
 **Themes:** `midnight` (cyan), `bloodmoon` (red), `void` (purple),
 `synthwave` (magenta/cyan).
+
+## Your brand character (the recognisable bit)
+
+A personal brand needs one instantly-recognisable mascot. Every frame draws the
+**same character** with a signature trademark — pick one and keep it forever.
+
+```bash
+yt-automation stickman characters
+```
+
+| preset | trademark |
+|---|---|
+| `iko` | magenta **headband + shades** (default) |
+| `boss` | gold **crown + shades** |
+| `halo` | glowing **antenna** |
+| `sage` | **glasses** |
+| `rookie` | **cap** |
+| `cyber` | **visor** |
+
+Set it per video with `--character`, or as the channel default in
+`channel.ChannelConfig.character`. Trademarks combine headwear
+(`headband/cap/beanie/crown/horns/antenna`), eyewear
+(`shades/glasses/visor`) and props (`bowtie/scarf`) — define your own in
+`stickman/character.py` for a unique mascot.
 
 ---
 
@@ -211,8 +264,10 @@ src/yt_automation/
 │   ├── skeleton.py     # bones + forward kinematics
 │   ├── poses.py        # key-pose library
 │   ├── actions.py      # keyframed, time-sampled actions
+│   ├── character.py    # brand mascot: trademark accessories
 │   ├── render.py       # Pillow drawing, themes, effects
-│   └── scene.py        # storyboard -> frames -> mp4
+│   ├── scene.py        # animation: storyboard -> frames -> mp4 (shorts)
+│   └── montage.py      # long-form: still shots -> hard-cut video
 ├── tts.py              # edge / local(espeak) / elevenlabs + word timings
 ├── captions.py         # word-by-word ASS captions
 ├── audio_mix.py        # voice + music sidechain ducking

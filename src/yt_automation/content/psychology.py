@@ -354,6 +354,129 @@ def _claude_script(cfg: Config, topic: str, angle: str | None) -> StickScript:
 Source = Literal["auto", "claude", "curated", "template"]
 
 
+# ---------------------------------------------------------------------------
+# Long-form (4-6 min)
+# ---------------------------------------------------------------------------
+
+_LONG_SYSTEM = """You are the head writer for a fast-paced YouTube psychology
+channel animated with a single recurring stickman mascot. Write a LONG-FORM
+script (the spoken voiceover for a {minutes}-minute video).
+
+Hard rules:
+- Educational psychology only: understanding the mind and RECOGNISING
+  manipulation. Never how-to-manipulate or harmful content.
+- Each beat is ONE spoken sentence, 4-16 words, natural spoken prose.
+- Structure: a gripping cold-open hook, then 5-8 sections each with a clear
+  idea, a concrete example, and a takeaway; a recap; a strong CTA.
+- Aim for about {n_beats} beats so the narration runs ~{minutes} minutes.
+- For each beat pick an `action` from: {actions}; a short `keyword` (1-2 words);
+  and `intensity` 0..1 (hooks/climaxes high, calm explanation lower).
+- Title <=70 chars, curiosity-driven. 8-15 lowercase tags."""
+
+
+def _compilation_script(minutes: int, *, seed: int) -> StickScript:
+    """Offline long-form: stitch curated segments into an 'N facts' compilation."""
+    rng = random.Random(seed)
+    target = minutes * 60
+    segs = list(CURATED.values())
+    rng.shuffle(segs)
+    # ~22s of body per segment + intro line; size the list to the target length.
+    n = max(3, min(len(segs), round(target / 26)))
+    chosen = segs[:n]
+
+    beats: list[ScriptBeat] = [
+        _b(f"Here are {n} psychology facts that will change how you read people.",
+           "point", "PSYCHOLOGY", 0.92),
+        _b("Most people go their whole lives never learning these.", "point_up", "MOST NEVER", 0.8),
+    ]
+    for idx, seg in enumerate(chosen, start=1):
+        beats.append(_b(f"Number {idx}.", "stomp", f"#{idx}", 0.9))
+        # use each segment's body, drop its individual CTA (last beat)
+        body = seg.beats[:-1] if len(seg.beats) > 1 else seg.beats
+        for b in body:
+            beats.append(b.model_copy(deep=True))
+    beats.append(_b("Which one hit the hardest? Tell me in the comments.", "point", "COMMENT", 0.82))
+    beats.append(_b("Follow — your mind will thank you for it.", "cheer", "FOLLOW", 0.92))
+
+    tags = ["psychology", "psychology facts", "mindset", "self improvement",
+            "human behavior", "mental models", "dark psychology", "motivation"]
+    return StickScript(
+        title=f"{n} Psychology Facts That Feel Illegal To Know",
+        description=(
+            f"{n} psychology facts and cognitive biases that change how you see "
+            "yourself and everyone around you — explained fast."
+        ),
+        tags=tags,
+        beats=beats,
+    )
+
+
+def _claude_longform(cfg: Config, topic: str, angle: str | None, minutes: int) -> StickScript:
+    import anthropic
+
+    client = anthropic.Anthropic(api_key=cfg.anthropic_api_key)
+    n_beats = int(minutes * 60 / 2.6)  # ~2.6s of speech per beat
+    user = (
+        f"Topic: {topic}\n" + (f"Angle: {angle}\n" if angle else "")
+        + f"Write the full {minutes}-minute stickman script as structured JSON."
+    )
+    resp = client.messages.parse(
+        model=cfg.anthropic_model,
+        max_tokens=16000,
+        thinking={"type": "adaptive"},
+        output_config={"effort": cfg.anthropic_effort},
+        system=[{
+            "type": "text",
+            "text": _LONG_SYSTEM.format(minutes=minutes, n_beats=n_beats,
+                                        actions=", ".join(ACTION_VOCAB)),
+            "cache_control": {"type": "ephemeral"},
+        }],
+        messages=[{"role": "user", "content": user}],
+        output_format=StickScript,
+    )
+    script = resp.parsed_output
+    for b in script.beats:
+        if b.action not in ACTION_VOCAB:
+            b.action = "point"
+    return script
+
+
+def generate_longform(
+    cfg: Config,
+    topic: str | None = None,
+    *,
+    angle: str | None = None,
+    minutes: int = 5,
+    source: Source = "auto",
+    theme: str = "midnight",
+    seed: int | None = None,
+) -> StickScript:
+    """Long-form (4-6 min) script.
+
+    With an Anthropic key (and ``source`` auto/claude) Claude writes an original
+    deep-dive on ``topic``. Otherwise an offline 'N facts' compilation is built
+    from the curated library (genuinely good, no API needed).
+    """
+    if seed is None:
+        seed = random.randint(0, 2**31)
+    minutes = max(2, min(8, minutes))
+
+    if source in ("auto", "claude") and cfg.anthropic_api_key:
+        if topic is None:
+            topic, angle = random.Random(seed).choice(TOPICS)
+        cfg.require_anthropic()
+        s = _claude_longform(cfg, topic, angle, minutes)
+        s.theme = theme
+        return s
+
+    if source == "claude":
+        cfg.require_anthropic()
+
+    s = _compilation_script(minutes, seed=seed)
+    s.theme = theme
+    return s
+
+
 def generate_stickscript(
     cfg: Config,
     topic: str | None = None,

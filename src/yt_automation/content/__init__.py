@@ -4,6 +4,7 @@ from .psychology import (
     ScriptBeat,
     StickScript,
     TOPICS,
+    generate_longform,
     generate_stickscript,
     list_topics,
 )
@@ -13,5 +14,6 @@ __all__ = [
     "StickScript",
     "TOPICS",
     "generate_stickscript",
+    "generate_longform",
     "list_topics",
 ]

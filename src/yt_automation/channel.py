@@ -49,6 +49,9 @@ class ChannelConfig:
     supersample: int = 1
     words_per_caption: int = 1
     caption_margin_frac: float = 0.10   # caption distance from bottom (lower third)
+    # brand mascot + montage (long-form, still-image cut) settings
+    character: str = "iko"              # recurring character preset (the brand)
+    shot_len: float = 1.9               # avg seconds per hard cut in montage mode
     # optional TTS overrides applied on top of .env Config
     tts_provider: str | None = None
     voice: str | None = None
@@ -205,10 +208,12 @@ def render_thumbnail(script: StickScript, ch: ChannelConfig, out: Path) -> Path:
     from PIL import Image, ImageDraw
 
     from .stickman import poses
+    from .stickman.character import draw_accessories, get_character
     from .stickman.render import apply_vignette, draw_figure, make_background
 
     W, H = 1280, 720
     theme = get_theme(ch.theme)
+    character = get_character(ch.character)
     img = make_background(W, H, theme, energy=0.7)
 
     skel = Skeleton()
@@ -216,7 +221,8 @@ def render_thumbnail(script: StickScript, ch: ChannelConfig, out: Path) -> Path:
     root = (W * 0.83, H * 0.9 - (skel.thigh + skel.shin) * scale)
     hero = poses.IDEA
     j = resolve(hero, skel, root, scale)
-    draw_figure(img, j, color=theme.figure, glow_color=theme.accent)
+    draw_figure(img, j, color=character.body, glow_color=character.glow)
+    draw_accessories(img, j, character)
     img = apply_vignette(img, 0.92)
 
     draw = ImageDraw.Draw(img, "RGBA")
@@ -362,6 +368,84 @@ def produce_episode(
     (ep_dir / "script.json").write_text(
         script.model_dump_json(indent=2), encoding="utf-8"
     )
+
+    return EpisodeResult(
+        slug=ep_dir.name, directory=ep_dir, script=script, video_path=video_path,
+        audio_path=audio_path, thumbnail_path=thumb, metadata_path=meta_path,
+        duration=duration,
+    )
+
+
+def produce_longform(
+    cfg: Config,
+    *,
+    channel: ChannelConfig,
+    topic: str | None = None,
+    angle: str | None = None,
+    minutes: int = 5,
+    source: str = "auto",
+    out_dir: Path | None = None,
+    publish_at: datetime | None = None,
+    progress=None,
+) -> EpisodeResult:
+    """Produce a 4-6 min montage video: many still shots of the brand character,
+    hard-cut to the voiceover, with music + captions. No animation."""
+    from .content.psychology import generate_longform
+    from .stickman.character import get_character
+    from .stickman.montage import MontageConfig, beats_to_shots, render_montage
+
+    cfg = _apply_channel_to_config(cfg, channel)
+    script = generate_longform(
+        cfg, topic, angle=angle, minutes=minutes, source=source, theme=channel.theme,  # type: ignore[arg-type]
+    )
+
+    base = out_dir or (cfg.output_dir / "episodes")
+    ep_dir = base / _slug(script.title)
+    work = ep_dir / "work"
+    ep_dir.mkdir(parents=True, exist_ok=True)
+
+    render_beats, voice_path, caption_words = build_timed_beats(cfg, script, channel, work)
+
+    music = audio_mix.pick_music(cfg.music_dir)
+    if music is not None and music.exists():
+        audio_path = audio_mix.mix(voice_path, music, work / "audio_mixed.mp3")
+    else:
+        audio_path = voice_path
+
+    duration = audio_duration_seconds(audio_path)
+    if render_beats:
+        last = render_beats[-1]
+        render_beats[-1] = dataclasses.replace(last, duration=max(0.4, duration - last.start))
+
+    w, h = dimensions(channel.fmt)
+    mcfg = MontageConfig(
+        width=w, height=h, fps=channel.fps, theme=channel.theme,
+        shot_len=channel.shot_len, captions=True,
+    )
+    shots = beats_to_shots(render_beats, mcfg)
+
+    ass_path = None
+    if mcfg.captions:
+        ass_path = captions.write_ass(
+            caption_words, work / "captions.ass", width=w, height=h,
+            words_per_line=channel.words_per_caption, margin_v_frac=channel.caption_margin_frac,
+        )
+
+    video_path = ep_dir / "video.mp4"
+    render_montage(
+        shots, get_character(channel.character), mcfg,
+        audio_path=audio_path, out_path=video_path, captions_ass=ass_path,
+        progress=progress,
+    )
+
+    thumb = render_thumbnail(script, channel, ep_dir / "thumbnail.jpg")
+    meta = build_metadata(script, channel, duration=duration, publish_at=publish_at)
+    meta["files"] = {"video": video_path.name, "thumbnail": thumb.name}
+    meta["format"] = "longform-montage"
+    meta["shots"] = len(shots)
+    meta_path = ep_dir / "metadata.json"
+    meta_path.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
+    (ep_dir / "script.json").write_text(script.model_dump_json(indent=2), encoding="utf-8")
 
     return EpisodeResult(
         slug=ep_dir.name, directory=ep_dir, script=script, video_path=video_path,

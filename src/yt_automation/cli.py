@@ -276,6 +276,43 @@ def channel_episode(
     console.print(f"[green]✓[/green] Duration  -> {res.duration:.1f}s, {len(res.script.beats)} beats")
 
 
+@channel_app.command("longform")
+def channel_longform(
+    topic: Annotated[Optional[str], typer.Argument(help="Topic. Omit for an 'N facts' compilation.")] = None,
+    minutes: Annotated[int, typer.Option(help="Target length, 4-6 recommended.")] = 5,
+    preset: Annotated[str, typer.Option()] = "psychology_en",
+    source: Annotated[str, typer.Option(help="auto | claude | compilation")] = "auto",
+    character: Annotated[Optional[str], typer.Option(help="Brand mascot preset.")] = None,
+    shot_len: Annotated[float, typer.Option(help="Avg seconds per cut (smaller = faster).")] = 1.9,
+    theme: Annotated[Optional[str], typer.Option()] = None,
+    fps: Annotated[Optional[int], typer.Option()] = None,
+) -> None:
+    """Produce a 4-6 min MONTAGE: 150+ still shots of the brand character, hard-cut
+    to the voiceover with music + captions. No animation — just images stitched."""
+    from .channel import get_preset, produce_longform
+
+    cfg = Config.load()
+    ch = get_preset(preset)
+    if theme:
+        ch.theme = theme
+    if fps:
+        ch.fps = fps
+    if character:
+        ch.character = character
+    ch.shot_len = shot_len
+
+    console.print(f"[bold]{ch.name}[/bold] · character [bold]{ch.character}[/bold] · "
+                  f"theme {ch.theme} · ~{minutes} min · source {source}")
+    with console.status("Producing long-form montage (script → voice → 150+ shots → cut)..."):
+        res = produce_longform(cfg, channel=ch, topic=topic, minutes=minutes, source=source)
+
+    console.print(f"\n[bold]{res.script.title}[/bold]")
+    console.print(f"[green]✓[/green] Video     -> {res.video_path}")
+    console.print(f"[green]✓[/green] Thumbnail -> {res.thumbnail_path}")
+    console.print(f"[green]✓[/green] Metadata  -> {res.metadata_path}")
+    console.print(f"[green]✓[/green] {res.duration:.0f}s, {len(res.script.beats)} beats")
+
+
 @channel_app.command("batch")
 def channel_batch(
     count: Annotated[int, typer.Option(help="How many episodes to produce.")] = 5,
@@ -393,6 +430,21 @@ def stickman_actions() -> None:
     from .stickman.actions import action_names
 
     console.print("Actions: " + ", ".join(action_names()))
+
+
+@stickman_app.command("characters")
+def stickman_characters() -> None:
+    """List brand mascot presets (recurring character + trademark)."""
+    from .stickman.character import PRESETS
+
+    table = Table(title="Brand characters")
+    table.add_column("preset")
+    table.add_column("name")
+    table.add_column("headwear")
+    table.add_column("eyewear")
+    for key, c in PRESETS.items():
+        table.add_row(key, c.name, c.headwear, c.eyewear)
+    console.print(table)
 
 
 if __name__ == "__main__":
