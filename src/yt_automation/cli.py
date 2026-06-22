@@ -10,6 +10,7 @@ from rich.console import Console
 from rich.table import Table
 
 from . import footage as footage_mod
+from . import filmstrip as filmstrip_mod
 from .config import Config
 from .pipeline import run_from_text, run_pipeline
 from .script import (
@@ -78,6 +79,38 @@ def from_text_cmd(
     console.print(f"[green]✓[/green] Audio    -> {result.audio_path}")
     console.print(f"[green]✓[/green] Video    -> {result.video_path}")
     console.print(f"\n[bold]{result.script.title}[/bold]")
+
+
+@app.command(name="strip")
+def strip_cmd(
+    sheet: Annotated[Path, typer.Argument(help="Filmstrip-Bild (mehrere Frames in einem Bild).")],
+    out_dir: Annotated[
+        Path, typer.Option(help="Zielordner für Frames.")
+    ] = Path("assets/forge/poses/strip"),
+    n: Annotated[
+        Optional[int], typer.Option(help="Anzahl Frames. Ohne Angabe geschätzt.")
+    ] = None,
+    animate: Annotated[
+        bool, typer.Option(help="Frames zusätzlich zu einem Video zusammenbauen.")
+    ] = False,
+    fps: Annotated[int, typer.Option(help="Frames/Sek. bei --animate.")] = 12,
+    fmt: Annotated[VideoFormat, typer.Option("--format")] = VideoFormat.SHORTS,
+    fit: Annotated[str, typer.Option(help="cover (füllen) oder contain (einpassen).")] = "cover",
+) -> None:
+    """Gemini-Filmstreifen (ein Bild, mehrere Frames) in Einzelframes schneiden.
+
+    Mit --animate entsteht zusätzlich ein Video (Turnaround/Slideshow) als
+    Hintergrund. Ohne --animate kannst du den Frame-Ordner direkt als
+    `--background` für `from-text` verwenden.
+    """
+    frames = filmstrip_mod.slice_strip(sheet, out_dir, n=n)
+    console.print(f"[green]✓[/green] {len(frames)} Frames -> {out_dir}")
+    if animate:
+        width, height = (1080, 1920) if fmt == VideoFormat.SHORTS else (1920, 1080)
+        out = out_dir / "clip.mp4"
+        with console.status("Baue Video aus Frames..."):
+            filmstrip_mod.frames_to_video(frames, out, width, height, fps=fps, fit=fit)
+        console.print(f"[green]✓[/green] Video -> {out}")
 
 
 # ============================================================
