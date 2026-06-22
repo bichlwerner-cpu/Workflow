@@ -20,8 +20,12 @@ eine Comic-/Vektor-Figur. Persönlichkeit: ruhig, hart, ein bisschen trocken-hum
 | Sekundär-Detail   | dezente Risslinien wie geschmiedeter Stahl an Unterarmen/Schienbeinen |
 | Outfit            | schlichte schwarze Trainings-Shorts `#1A1A1A`, barfuß oder schwarze Socken|
 | Bauform           | athletisch-funktional, breite Schultern, nicht überzeichnet-bodybuilder|
-| Linien            | klare, gleichmäßige Outline in Maroon, leichte Cel-Shading-Flächen   |
-| Stil              | flat / cel-shaded Vektor-Look, 2–3 Schattierungsstufen, kein Foto-Realismus|
+| Linien            | kräftige, saubere **schwarze** Outline                               |
+| Stil              | bold-outline Comic/Anime-Look, glänzendes Cel-Shading mit tiefen Maroon-Schatten + hellen Glanzlichtern, semi-realistische Muskel-Anatomie |
+
+> **Referenz gesperrt:** `assets/character/reference.png` ist der finale FORGE-Look –
+> glühende orange Augen, getapte Hände, schwarze Shorts mit crimson Akzent. Jede
+> Generierung hängt **dieses** Bild an und zielt auf genau diesen Look. Nicht neu erfinden.
 
 ## Logo / Marke
 - Wortmarke: **FORGE** in einer schweren, kondensierten Sans (z.B. Anton/Archivo Black-Stil).

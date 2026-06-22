@@ -25,12 +25,13 @@ Captions/Hooks/Skripte kommen von **Claude**, Layout von **Canva** – Bilder vo
 > Dieser String darf sich nie ändern. Er ist der Garant für den einheitlichen Look.
 
 ```
-STYLE: flat cel-shaded vector illustration, bold clean maroon outline, 2-3 shading
-levels, crimson-red muscular mascot character (#D23B2E body, #7A1B16 shadows, #F26A4B
-edge highlights), small faint glowing orange eyes (#FF8A3D), smooth featureless face,
-white sport-tape wrapped knuckles, subtle forged-steel crack lines on forearms and shins,
-plain black training shorts, athletic functional build, comic mascot, no photorealism,
-no text, no watermark, clean solid-color background.
+STYLE: bold-outline comic / anime illustration, strong clean BLACK outline, glossy
+cel-shading with deep maroon shadows (#7A1B16) and bright specular highlights, deep
+crimson-red muscular mascot (#D23B2E body), small glowing orange eyes (#FF8A3D) with a
+soft warm glow, smooth featureless red face, white sport-tape wrapped wrists and knuckles,
+plain black training shorts with a thin crimson side stripe and a small crimson emblem,
+athletic semi-realistic muscular anatomy, mascot character, not a photograph, no text,
+no watermark, clean solid-color background. Match the attached reference exactly.
 ```
 
 ## B) Negative-Prompt (immer mit)
