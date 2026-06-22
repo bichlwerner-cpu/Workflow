@@ -43,6 +43,13 @@ Voll automatisch über die bestehende CLI (siehe `README.md`):
    → edge-tts spricht, Whisper brennt Word-Captions, FFmpeg rendert 9:16.
 4. Voice-Vibe: knapp, ruhig, hart – passend zu FORGE. Musik dezent, Auto-Ducking ist an.
 
+## Posten & Planen
+- Standard: **Buffer** (free-Plan, 30 geplante Posts/Kanal; danach ab ~5 €/Kanal). Einfach,
+  reicht zum Start für YouTube Shorts + IG Reels + TikTok.
+- Wenn du Shorts in **einem Klick auf alle Plattformen** willst (inkl. YouTube Shorts/Reels/
+  TikTok gleichzeitig): **OneUp** oder **Beplan** (Bulk-Scheduling, VOD-zu-Shorts).
+- Plane in Batches: einmal pro Woche die ganze Queue füllen, nicht täglich einzeln posten.
+
 ## Definition of Done (pro Post)
 - [ ] Pillar + Hook gewählt (eigener Text).
 - [ ] Art mit Referenz-Anker + Style-Lock generiert, Konsistenz-Checkliste bestanden.

@@ -4,7 +4,20 @@ Methode: **Reference-Anchored Generation**. Erst einmalig ein Master-Referenzbla
 für jeden Post die Referenz + Pose + Style-Lock. Prompts auf Englisch (Bildmodelle
 verstehen das am besten). Funktioniert mit jedem Bildgenerator, der ein **Referenzbild für
 Charakter-Konsistenz** akzeptiert (Image-to-Image / Character-Reference). Genau das ist die
-Funktion, auf die es ankommt – wähle ein Tool, das sie hat, und bleib dabei.
+Funktion, auf die es ankommt.
+
+## Engine (konkret): Gemini Ultra → Nano Banana Pro
+Standard-Bild-Engine ist **Nano Banana Pro** (Gemini 3 Pro Image) in der **Gemini-App** –
+im Gemini-Ultra-Abo enthalten, 2026 führend bei Charakter-/Identitäts-Konsistenz. Kein
+zusätzliches Bild-Abo. So läuft's:
+1. **Einmal:** Master-Referenz-Prompt (Abschnitt C) → Modell *Nano Banana Pro* → bis FORGE
+   sitzt → als `assets/character/reference.png` speichern.
+2. **Pro Post:** in Gemini `reference.png` **anhängen** + Pose-Prompt (Abschnitt D) + den
+   **Style-Lock** (Abschnitt A, wortwörtlich). Nano Banana Pro hält dabei das Subjekt und
+   ändert nur die Pose.
+3. Stil driftet? Style-Lock härter formulieren, Referenz immer mitgeben.
+
+Captions/Hooks/Skripte kommen von **Claude**, Layout von **Canva** – Bilder von Gemini.
 
 ---
 

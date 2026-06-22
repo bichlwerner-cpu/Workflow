@@ -44,6 +44,17 @@ Mehr macht das System nicht kompliziert. Ein Anker, ein Style-Lock, fertig.
 [6] Batch & Posten     →  Cadence + Hashtags + Planung (channel-os.md)
 ```
 
+## Toolstack (konkret – was du wofür benutzt)
+| Aufgabe                         | Tool                                             |
+|---------------------------------|--------------------------------------------------|
+| FORGE-Posen / Illustrationen    | **Gemini Ultra → Nano Banana Pro** (Bild-Engine) |
+| Ideen, Hooks, Captions, Steuerung| **Claude**                                       |
+| Branding / Layout / Poster      | **Canva** (Brand-Template)                        |
+| Short-Video (Voice/Captions/Render)| **dieses Repo** (edge-tts + Whisper + FFmpeg)   |
+| Posten & Planen                 | **Buffer** (oder OneUp für Multi-Plattform-Shorts)|
+
+Alles Schwere läuft über Abos, die du schon hast (Gemini Ultra + Claude). ~0 € Mehrkosten.
+
 ## Schritt für Schritt
 
 ### [1] Figur einmalig sperren
