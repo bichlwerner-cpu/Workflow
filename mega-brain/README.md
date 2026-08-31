@@ -77,3 +77,22 @@ das mit Beleg sichtbar gemacht — gehandelt wird nicht.
   Die Routine liest diese Datei nicht selbst — der Text ist im Trigger gespeichert.
 - **Neues Beobachtungsfeld** → `felder` in `morgenbriefing-daten.json`, mit
   `intervall` und `pflicht`.
+
+## Die Routine
+
+Angelegt als `Mega Brain — Tageslauf` (`trig_01PHeRhaDirK1qnAUieCPokn`), werktags
+`30 4 * * 1-5` UTC = **06:30 Wien** (Sommerzeit; ab der Zeitumstellung Ende Oktober
+wird daraus 05:30 lokal — dann den Cron auf `30 5 * * 1-5` setzen). Jeder Lauf startet
+eine frische Session, Push-Benachrichtigung ist an.
+
+**Offener Punkt — Connector-Zugriff.** Das Anlegen der Routine über die MCP-Schnittstelle
+konnte den Google-Drive-Zugriff nicht mitspeichern; die Organisation erlaubt den
+`connectors`-Parameter dort nicht. Ohne diesen Zugriff kann der Tageslauf das Gedächtnis
+in Drive weder lesen noch zurückschreiben.
+
+Der Routine-Prompt fängt das ab: fehlt Drive, läuft nur die Absichern-Schicht aus
+frischer Recherche (die fünf Exit-Trigger stehen vollständig im Prompt und brauchen
+keinen State), und der Lauf sagt das im ersten Satz.
+
+**Fix:** die Routine in den claude.ai-Einstellungen unter Routines öffnen und Google
+Drive als Connector zuweisen. Danach läuft der volle Kreislauf inklusive Gedächtnis.

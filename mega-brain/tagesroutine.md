@@ -16,9 +16,8 @@ Ordner: **Mega Brain** (`1YeR_6Er2zuoBu4pHDvhVbn2AgV47HnCz`)
 
 Lies beide Dateien, bevor du irgendetwas anderes tust:
 
-1. `brain-state.json` (`1KUgBthRCDB7Zm_mWvpxGoRoh2gDqihgS` ist die *andere* Datei —
-   `brain-state.json` per `search_files` im Ordner suchen) — Watchlist, Risiko-Cockpit,
-   Exit-Trigger.
+1. `brain-state.json` (`1dJAO9YKgMPsV9BGQux4Y1PUyG5LxwdpI`) — Watchlist,
+   Risiko-Cockpit, Exit-Trigger.
 2. `morgenbriefing-daten.json` (`1KUgBthRCDB7Zm_mWvpxGoRoh2gDqihgS`) — Beobachtungsfelder,
    Funde, Scan-Historie, Läufe.
 
