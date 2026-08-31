@@ -1,0 +1,340 @@
+{
+  "schema": "mega-brain/2",
+  "stand": "2026-08-31",
+  "zeitzone": "Europe/Vienna",
+  "sprache": "de",
+  "zweck": "Persistentes Gedaechtnis eines taeglich laufenden Auswertungssystems fuer KI-Infrastruktur-News und -Aktien. Drei Schichten: Entdecken (Discovery Loop), Bewerten (Watchlist), Absichern (Risiko-Cockpit + Exit-Trigger).",
+
+  "ablage": {
+    "ordner": "Mega Brain",
+    "ordner_id": "1YeR_6Er2zuoBu4pHDvhVbn2AgV47HnCz",
+    "ordner_url": "https://drive.google.com/drive/folders/1YeR_6Er2zuoBu4pHDvhVbn2AgV47HnCz",
+    "entdecken_datei": "morgenbriefing-daten.json",
+    "entdecken_datei_id": "1KUgBthRCDB7Zm_mWvpxGoRoh2gDqihgS",
+    "hinweis": "Diese Datei haelt Bewerten + Absichern. Die Entdecken-Schicht (felder, funde, scans, laeufe, briefings) bleibt unveraendert in morgenbriefing-daten.json im selben Ordner - Schema und Discovery-Loop dort nicht brechen."
+  },
+
+  "quellen_doku": [
+    {
+      "titel": "KI-Infrastruktur-Aktien-Ranking fuer Melt-up",
+      "rolle": "Grundlage der Watchlist (Rang 1-16, Melt-up-Beta, Purity, Marktstruktur)",
+      "stand": "2026-06-04",
+      "datenstand": "2026-06-02/03",
+      "url": "https://docs.google.com/document/d/1XaLZJVW5kw7kSm6tEllVb0cmIXafQKKyBeIavctt_Rw/edit",
+      "besitzer": "bichl.werner@gmail.com",
+      "warnung": "Kennzahlen sind vom Juni 2026 und damit ~3 Monate alt. Vor jeder Entscheidung neu messen, nicht aus dieser Datei zitieren."
+    },
+    {
+      "titel": "Blasen-Top-Indikatoren: Aktuelle Analyse",
+      "rolle": "Grundlage des Risiko-Cockpits und der Exit-Trigger",
+      "stand": "2026-06-04",
+      "datenstand": "2026-06-02/03",
+      "url": "https://docs.google.com/document/d/10myX9lr77lrJTMvGhC4Q6H9kIjry_tNbbUHKj1IbZ2U/edit",
+      "besitzer": "bichl.werner@gmail.com",
+      "warnung": "Alle Indikatorwerte unten sind Startwerte aus diesem Dokument. Der Tageslauf ersetzt sie durch frisch gemessene Werte."
+    }
+  ],
+
+  "watchlist": [
+    {
+      "ticker": "NBIS", "name": "Nebius Group", "boerse": "NASDAQ", "gruppe": "melt-up-ranking", "rang": 1,
+      "rolle": "Neocloud Pure-Play (100 % KI-Cloud)",
+      "these": "Hoechster mechanischer Hebel im Universum: 100 % Exposure-Purity trifft auf enge Marktstruktur. Short Interest bis 21,1 % des Float bei IV von 112 % (96. Perzentil) - jeder Capex-Schub zwingt Market Maker zu Eindeckungen.",
+      "gegenrede": "P/S (ttm) 76x und Fwd P/E 74x preisen die Perfektion bereits ein. Ein Pure-Play ohne zweites Standbein faellt genauso asymmetrisch, wenn Hyperscaler-Capex nur stagniert. Meta- und Microsoft-Deals sind Klumpenrisiko, nicht Diversifikation.",
+      "kennzahlen_stand": "2026-06-03",
+      "kennzahlen": {"kurs_usd": 251.68, "ytd_pct": 216, "beta_ndx": 2.50, "ki_umsatzanteil_pct": 100, "short_interest_pct_float": 21.1, "days_to_cover": 2.3, "iv_pct": 112.47, "fwd_pe": 74.20},
+      "beobachten": ["Abrufe aus dem Meta-Deal ($27 Mrd. / 5 J.)", "Short Interest und Days-to-Cover woechentlich", "Capex-Guidance der Hyperscaler als Nachfrage-Proxy"]
+    },
+    {
+      "ticker": "ALAB", "name": "Astera Labs", "boerse": "NASDAQ", "gruppe": "melt-up-ranking", "rang": 2,
+      "rolle": "Konnektivitaet im Rack (PCIe Gen6, CXL)",
+      "these": "Sauberstes Pure-Play fuer physische Konnektivitaet. Verbindungskomplexitaet waechst quadratisch mit der Clustergroesse - der Umsatz haengt nicht an GPU-Stueckzahlen, sondern an Clusterbreite.",
+      "gegenrede": "EV/Sales > 25x am oberen Ende einer sehr kurzen Boersenhistorie. Beta-Schaetzungen sind Modellrechnung, keine gemessene Korrelation. Broadcom und Marvell koennen dieselbe Funktion in Custom-Silicon integrieren.",
+      "kennzahlen_stand": "2026-06-03",
+      "kennzahlen": {"kurs_usd": 355.76, "ytd_pct": 135, "beta_ndx": 2.40, "ki_umsatzanteil_pct": 100, "short_interest_pct_float": 6.5, "ev_sales": 25.0},
+      "beobachten": ["Design-Wins bei PCIe Gen6", "Interop-Labor-Ausbau Taiwan", "Ob Hyperscaler Konnektivitaet ins eigene ASIC ziehen"]
+    },
+    {
+      "ticker": "CRDO", "name": "Credo Technology", "boerse": "NASDAQ", "gruppe": "melt-up-ranking", "rang": 3,
+      "rolle": "Active Electrical Cables + optische Rampe",
+      "these": "Hoechstes rein mathematisches Beta im Halbleiterbereich (3,18 vs. NDX). FY26-Umsatz verdreifacht auf $1,34 Mrd., FY27-Guidance > 80 % Wachstum, gestuetzt auf > $600 Mio. optische Rampe.",
+      "gegenrede": "Trailing P/E 128x. AEC ist eine Uebergangstechnologie zwischen Kupfer und Optik - genau die Nische, die verschwindet, wenn Co-Packaged Optics frueher kommt als erwartet.",
+      "kennzahlen_stand": "2026-06-03",
+      "kennzahlen": {"kurs_usd": 214.60, "ytd_pct": 49.14, "ltm_pct": 198.39, "beta_ndx": 3.18, "ki_umsatzanteil_pct": 95, "short_interest_pct_float": 6.1, "trailing_pe": 128, "fwd_pe": 69},
+      "beobachten": ["Optische Rampe: tatsaechlicher Umsatz vs. $600-Mio.-Ziel", "CPO-Zeitplan der Hyperscaler als Gegenindikator", "FY27-Guidance-Bestaetigung"]
+    },
+    {
+      "ticker": "LITE", "name": "Lumentum", "boerse": "NASDAQ", "gruppe": "melt-up-ranking", "rang": 4,
+      "rolle": "EML-Laserchips, Optical Circuit Switches",
+      "these": "Flaschenhals bei Laser-Wafern. EML-Umsaetze sequenziell verdoppelt im 1.6T-Uebergang, OCS-Auftragsbestand > $400 Mio.",
+      "gegenrede": "LTM-Performance von ~1500 % ist selbst das Warnsignal. Gehebelte Instrumente wie der LITU-ETF ziehen genau das Kapital an, das beim ersten Rueckschlag zuerst verschwindet. Fwd P/S 12,48x vs. Sektor 5,8x.",
+      "kennzahlen_stand": "2026-06-03",
+      "kennzahlen": {"kurs_usd": 860.62, "ytd_pct": 132, "ltm_pct": 1500, "beta_ndx": 2.20, "ki_umsatzanteil_pct": 50, "fwd_ps": 12.48},
+      "beobachten": ["OCS-Auftragsbestand", "EML-Kapazitaetsausbau", "Fondsvolumen LITU als Sentiment-Proxy"]
+    },
+    {
+      "ticker": "COHR", "name": "Coherent", "boerse": "NYSE", "gruppe": "melt-up-ranking", "rang": 5,
+      "rolle": "Optische Transceiver (Duopol mit LITE)",
+      "these": "NVIDIA hat mit $2 Mrd. Eigenkapital in COHR/LITE/MRVL den Optik-Uebergang validiert. Datacenter + Communications sind 75 % des Umsatzes.",
+      "gegenrede": "P/S 11,5x ist historischer Hoechststand. Eine strategische Beteiligung des groessten Kunden ist auch eine Abhaengigkeit - NVIDIA kann Konditionen diktieren.",
+      "kennzahlen_stand": "2026-06-03",
+      "kennzahlen": {"kurs_usd": 380.00, "ytd_pct": 96, "ltm_pct": 419, "beta_ndx": 2.10, "ki_umsatzanteil_pct": 75, "ps": 11.5},
+      "beobachten": ["Weitere NVIDIA-Beteiligungsschritte", "Marge im Transceiver-Geschaeft", "CPO-Design-Wins vs. Pluggables"]
+    },
+    {
+      "ticker": "MRVL", "name": "Marvell Technology", "boerse": "NASDAQ", "gruppe": "melt-up-ranking", "rang": 6,
+      "rolle": "Custom Silicon + optische DSPs",
+      "these": "Datacenter-Anteil 76 % in Q1 FY27, FY27-Umsatzziel auf ~$11,5 Mrd. angehoben. Von Jensen Huang auf der COMPUTEX als Milliarden-Kandidat adressiert.",
+      "gegenrede": "Q2 (28.08.2026) hat die Kehrseite gezeigt: Rekordumsatz $2,739 Mrd. (+37 %), aber Bruttomargen-Guidance faellt auf 57,5-58,5 % (Vorjahr 59,4 %), weil Custom-Chips fuer Cloud-Anbieter margenaermer sind. Aktie -6 bis -8 %. Trailing P/E 111x.",
+      "kennzahlen_stand": "2026-08-28",
+      "kennzahlen": {"kurs_usd": 319.00, "ytd_pct": 122, "beta_ndx": 2.00, "ki_umsatzanteil_pct": 76, "iv_pct": 87.25, "trailing_pe": 111.4, "bruttomarge_guidance_pct": "57,5-58,5"},
+      "beobachten": ["Bruttomarge Q3: tatsaechlich vs. 57,5-58,5 %", "Weitere Photonik-Zukaeufe", "Verhaeltnis Custom-Silicon zu Standardprodukten"],
+      "verbindung_fund": "Marvell x Celestial AI (Photonik-Konsolidierung)"
+    },
+    {
+      "ticker": "000660", "name": "SK hynix", "boerse": "KRX", "gruppe": "melt-up-ranking", "rang": 7,
+      "rolle": "HBM-Marktfuehrer (> 50 % Anteil)",
+      "these": "HBM4 direkt fuer NVIDIAs Rubin-Plattform spezifiziert, Produktion 2026 vollstaendig ausverkauft - makellose Preismacht. KGV 31,89x ist bei dreistelligen Wachstumsraten historisch guenstig.",
+      "gegenrede": "Speicher war immer zyklisch. HBM-Kapazitaeten wachsen schnell; der Engpass kann wie in frueheren Zyklen in Ueberkapazitaet kippen. KRX-Notierung begrenzt spekulative Zufluesse.",
+      "kennzahlen_stand": "2026-06-03",
+      "kennzahlen": {"kurs_krw": 240000, "ytd_pct": 177.70, "beta_ndx": 1.90, "ki_umsatzanteil_pct": 57, "pe": 31.89},
+      "beobachten": ["HBM-Preisrunden", "Samsung-Qualifizierung als Wettbewerbsdruck", "DRAM-Kontraktpreise QoQ"],
+      "verbindung_fund": "SK hynix x Nvidia (Speicher als Engpass)"
+    },
+    {
+      "ticker": "MU", "name": "Micron Technology", "boerse": "NASDAQ", "gruppe": "melt-up-ranking", "rang": 8,
+      "rolle": "HBM Nr. 2 westlich",
+      "these": "Identische Verknappungslogik wie SK hynix, aber fuer globale Momentum-Stroeme direkt zugaenglich. HBM 2026 ausverkauft.",
+      "gegenrede": "P/E LTM 49,3x und P/S 20,5x am zyklischen Hoch. Ein UBS-Kursziel von $1.625 ist ein Sentiment-Indikator, kein Fundamentalargument.",
+      "kennzahlen_stand": "2026-06-03",
+      "kennzahlen": {"kurs_usd": 1056.67, "ytd_pct": 136.76, "ltm_pct": 1029.2, "beta_ndx": 1.80, "ki_umsatzanteil_pct": 21, "rz_umsatzanteil_pct": 56, "pe_ltm": 49.3},
+      "beobachten": ["HBM-Kapazitaetsausbau", "DRAM-Spotpreise als Fruehindikator", "Analysten-Kursziel-Revisionen als Sentiment-Proxy"]
+    },
+    {
+      "ticker": "VRT", "name": "Vertiv Holdings", "boerse": "NYSE", "gruppe": "melt-up-ranking", "rang": 9,
+      "rolle": "Rechenzentrumskuehlung (23,5 % Marktanteil)",
+      "these": "Physischer Enabler des Booms. Auftragsbestand bis $15 Mrd. gibt Umsatztransparenz bis 2027. Seit S&P-500-Aufnahme (Maerz 2026) passive Zufluesse.",
+      "gegenrede": "Physische Ausruester haben laengere Konversionszyklen und damit geringere spekulative Beta-Elastizitaet. Trailing P/E 81x und P/S 12,1x sind fuer einen Hardware-Hersteller historisch sehr teuer.",
+      "kennzahlen_stand": "2026-06-03",
+      "kennzahlen": {"kurs_usd": 300.00, "ytd_pct": 90, "ltm_pct": 206.01, "beta_ndx": 1.70, "ki_umsatzanteil_pct": 32, "rz_umsatzanteil_pct": 80, "iv_pct": 69.42, "trailing_pe": 81.18},
+      "beobachten": ["Auftragseingang organisch", "Fluessigkuehlungs-Anteil am Mix", "Book-to-Bill"]
+    },
+    {
+      "ticker": "NVDA", "name": "NVIDIA", "boerse": "NASDAQ", "gruppe": "melt-up-ranking", "rang": 10,
+      "rolle": "Referenz-Anker der gesamten Kette",
+      "these": "Q1 FY27 Umsatz $81,62 Mrd. (+85 % YoY) bei Fwd P/E von nur 21,61x - unter dem eigenen 5-Jahres-Schnitt. Der Systemfuehrer ist relativ zur Historie guenstig.",
+      "gegenrede": "Genau deshalb der geringere Melt-up-Hebel: maximale Liquiditaet und Marktkapitalisierung daempfen die Elastizitaet. Bruttomargen-Guidance zuletzt auf 74 % gesenkt, weil Speicher zum preissetzenden Engpass wird.",
+      "kennzahlen_stand": "2026-06-03",
+      "kennzahlen": {"kurs_usd": 214.75, "ytd_pct": 25, "ltm_pct": 66.1, "beta_ndx": 2.22, "ki_umsatzanteil_pct": 85, "trailing_pe": 32.89, "fwd_pe": 21.61, "bruttomarge_guidance_pct": 74},
+      "beobachten": ["Bruttomarge Q3: tatsaechlich vs. 74 %", "HBM-Beschaffungskosten", "Beteiligungen in der Lieferkette (COHR/LITE/MRVL, CoreWeave, xAI)"]
+    },
+    {
+      "ticker": "AVGO", "name": "Broadcom", "boerse": "NASDAQ", "gruppe": "melt-up-ranking", "rang": 11,
+      "rolle": "Custom ASICs (Google TPU, Meta XPU) + AI-Ethernet",
+      "these": "Q2-KI-Halbleiterumsatz $10,8 Mrd. (+143 % YoY), FY27-KI-Schaetzung > $100 Mrd.",
+      "gegenrede": "Der 3.6.2026 hat das Strukturproblem offengelegt: KI auf Rekord, aber VMware-Schwaeche und eine Q3-Guidance-Verfehlung ($16,0 vs. $17,2 Mrd. Fluesterschaetzung) fuehrten zu -13 % nachboerslich. Fehlende Purity bremst im Melt-up.",
+      "kennzahlen_stand": "2026-06-03",
+      "kennzahlen": {"kurs_usd": 416.00, "beta_ndx": 1.50, "ki_umsatzanteil_pct": 49, "trailing_pe": 80.1},
+      "beobachten": ["KI-Guidance vs. Fluesterschaetzung", "VMware-Segmentumsatz", "TPU-Volumen bei Google"]
+    },
+    {
+      "ticker": "005930", "name": "Samsung Electronics", "boerse": "KRX", "gruppe": "melt-up-ranking", "rang": 12,
+      "rolle": "Groesste Fertigungskapazitaet, HBM-Nachzuegler",
+      "these": "Design-In-Zulassung fuer NVIDIA-Plattformen in Q1 erreicht; P/B 4,46x guenstig im Peer-Vergleich.",
+      "gegenrede": "Legacy-Bereiche (Consumer, Haushalt, Smartphones) verwaessern den Capex-Hebel drastisch. Technologisch und ertragsseitig hinter SK hynix und Micron.",
+      "kennzahlen_stand": "2026-06-03",
+      "kennzahlen": {"kurs_krw": 75000, "ytd_pct": 122.18, "beta_ndx": 1.30, "ki_umsatzanteil_pct": 17, "pb": 4.46},
+      "beobachten": ["HBM4-Qualifizierung bei NVIDIA", "Foundry-Auslastung", "Anteil Halbleiter am Konzernergebnis"]
+    },
+    {
+      "ticker": "GEV", "name": "GE Vernova", "boerse": "NYSE", "gruppe": "melt-up-ranking", "rang": 13,
+      "rolle": "Netzelektrizitaet fuer Rechenzentren",
+      "these": "Auftragsbestand $163 Mrd., Q1-Orders +71 % ($18,3 Mrd.), davon $2,4 Mrd. RZ-Orders. Unvergleichliche fundamentale Absicherung.",
+      "gegenrede": "Realisierungszyklen im Stromnetz (Genehmigungen, Transformatorenfertigung) sind zu traege fuer eine Melt-up-Dynamik. Fwd P/E 63,63x nach Rekordlauf.",
+      "kennzahlen_stand": "2026-06-03",
+      "kennzahlen": {"kurs_usd": 960.00, "ytd_pct": 87.13, "beta_ndx": 1.40, "ki_umsatzanteil_pct": 35, "fwd_pe": 63.63},
+      "beobachten": ["RZ-Orders je Quartal", "Transformator-Lieferzeiten", "Gasturbinen-Nachfrage aus Across-the-Meter-Projekten"],
+      "verbindung_fund": "Joulent (National Grid, Across-the-Meter)"
+    },
+    {
+      "ticker": "VST", "name": "Vistra", "boerse": "NYSE", "gruppe": "melt-up-ranking", "rang": 14,
+      "rolle": "Unregulierter Stromproduzent, Hyperscaler-PPAs",
+      "these": "Langfristvertraege mit Hyperscalern wie Meta; Fwd P/E 16,25x nach Konsolidierung moderat.",
+      "gegenrede": "Preiskappungsvorschlaege im PJM-Grosshandelsmarkt begrenzen das ungedeckelte Margenpotenzial. YTD -3,1 % trotz KI-Boom ist das eigentliche Signal.",
+      "kennzahlen_stand": "2026-06-03",
+      "kennzahlen": {"kurs_usd": 154.22, "ytd_pct": -3.1, "beta_ndx": 1.58, "ki_umsatzanteil_pct": 28, "fwd_pe": 16.25},
+      "beobachten": ["PJM-Regulierung", "Neue Hyperscaler-PPAs", "EBITDA-Guidance FY26 ($6,8-7,6 Mrd.)"]
+    },
+    {
+      "ticker": "CEG", "name": "Constellation Energy", "boerse": "NASDAQ", "gruppe": "melt-up-ranking", "rang": 15,
+      "rolle": "Atomstrom fuer Rechenzentren",
+      "these": "Starke operative Quartale ($11,12 Mrd. Q1-Umsatz), strukturelle Nachfrage nach CO2-freier Grundlast.",
+      "gegenrede": "Schwaechster Hebel im Universum: YTD -24 %. Notfallauktions-Initiative der US-Regierung soll Technologiekonzerne staerker an Netzausbaukosten beteiligen - politisches Risiko schlaegt direkt auf die Multiple-Expansion.",
+      "kennzahlen_stand": "2026-06-03",
+      "kennzahlen": {"kurs_usd": 267.24, "ytd_pct": -24, "beta_ndx": 1.15, "ki_umsatzanteil_pct": 40, "fwd_pe": 23.20},
+      "beobachten": ["US-Notfallauktionen im Strommarkt", "Secondary Offerings", "Neue RZ-Vertraege"]
+    },
+    {
+      "ticker": "AMZN", "name": "Amazon", "boerse": "NASDAQ", "gruppe": "melt-up-ranking", "rang": 16,
+      "rolle": "Low-Beta-Anker, Capex-Zahler statt -Empfaenger",
+      "these": "Stabilitaetsanker im Portfolio. AWS-Wachstum stabilisiert.",
+      "gegenrede": "Plangemaesse Underperformance im Melt-up. $200 Mrd. Capex 2026 lassen den freien Cashflow negativ zu werden drohen - Amazon zahlt den Boom, es empfaengt ihn nicht.",
+      "kennzahlen_stand": "2026-06-03",
+      "kennzahlen": {"kurs_usd": 250.23, "ytd_pct": 0, "beta_ndx": 1.00, "aws_umsatzanteil_pct": 30, "capex_2026_mrd_usd": 200},
+      "beobachten": ["Freier Cashflow (Kipppunkt negativ)", "AWS-Wachstumsrate", "Capex-Guidance-Revisionen"]
+    },
+
+    {
+      "ticker": "GOOGL", "name": "Alphabet", "boerse": "NASDAQ", "gruppe": "discovery-kette",
+      "rolle": "Ankerwert des Discovery-Loop-Feldes",
+      "these": "Jede skalierte Experimentier-Pipeline (Discovery Loop, Gemini) bleibt vorerst Compute-Nachfrage ueber Google Cloud. Capex 2026: $175-185 Mrd.",
+      "gegenrede": "Capex-to-Revenue bei 46 % - im roten Bereich der Blasen-Matrix. Die DeepMind-Neuordnung (Hassabis als Chair GDM und Chief Scientist, Kavukcuoglu als SVP unter Pichai) liest sich als Stabilisierung, nicht als Beschleunigung.",
+      "kennzahlen_stand": "2026-06-03",
+      "kennzahlen": {"capex_2026_mrd_usd": "175-185", "capex_to_revenue_pct": 46},
+      "beobachten": ["Discovery-Loop-Finanzierungsrunde (offizielle Zahl)", "Personalbewegungen Google/DeepMind", "Compute-Deals jenseits Google Cloud"],
+      "verbindung_fund": "Discovery Loop (Alphabet)"
+    },
+    {
+      "ticker": "ASML", "name": "ASML", "boerse": "AMS/NASDAQ", "gruppe": "discovery-kette",
+      "rolle": "Litho-Monopol, profitiert von Memory-Capex",
+      "these": "Wenn Speicher zum preissetzenden Engpass wird, steigt Memory-Capex - und damit ASMLs Auftragseingang.",
+      "gegenrede": "Zwei Stufen entfernt vom Endkunden; Auftragseingang ist lumpy und laeuft der Nachfrage um Quartale nach.",
+      "beobachten": ["Auftragseingang aus dem Memory-Segment", "EUV-Auslieferungen", "China-Exportkontrollen"],
+      "verbindung_fund": "SK hynix x Nvidia (Speicher als Engpass)"
+    },
+    {
+      "ticker": "ANET", "name": "Arista Networks", "boerse": "NYSE", "gruppe": "discovery-kette",
+      "rolle": "Netzwerk im KI-Rechenzentrum",
+      "these": "Netzwerk skaliert mit Clustergroesse; direkter Nutzniesser jedes Compute-Deals.",
+      "gegenrede": "Broadcom greift mit AI-Ethernet dieselbe Schicht an; Hyperscaler bauen zunehmend eigene Switches.",
+      "beobachten": ["Anteil der Cloud-Titans am Umsatz", "800G-Portfolio-Rampe", "Konkurrenz durch AVGO-Ethernet"]
+    },
+    {
+      "ticker": "POET", "name": "POET Technologies", "boerse": "NASDAQ/TSXV", "gruppe": "discovery-kette",
+      "rolle": "Photonik-Nische, Optical Interposer",
+      "these": "Waehrend die Grossen Optik internalisieren, muessen spezialisierte Anbieter ihre Nische verteidigen - die Marvell-Margenentwicklung zeigt, dass die Grossen dafuer Marge zahlen.",
+      "gegenrede": "Klumpenrisiko-Beweis, kein Freibrief: Der Ex-Grosskunde Celestial AI waechst auch ohne POET rasant. Sammelklagen laufen. Verdraengung bleibt das Basisszenario.",
+      "beobachten": ["Ausgang der POET-Sammelklagen", "Lumilens-Abrufe gegen die $50-Mio.-Order", "Marvell-Bruttomarge Q3 als Umfeld-Indikator"],
+      "verbindung_fund": "Marvell x Celestial AI (Photonik-Konsolidierung)"
+    },
+    {
+      "ticker": "LPK", "name": "LPKF Laser & Electronics", "boerse": "XETRA", "gruppe": "discovery-kette",
+      "rolle": "LIDE-Verfahren fuer Through-Glass-Vias",
+      "these": "Panel-Level-Packaging plus Glas-Substrate sollen von ~$650 Mio. (2024) auf > $8 Mrd. (2030) wachsen, Serienfertigung 2027/28. Entscheidender Prozessschritt ist TGV per Ultrakurzpuls-Laser plus Aetzen - exakt LIDE.",
+      "gegenrede": "In der Marktstudie taucht LPKF selbst nicht auf - der Werkzeugmarkt ist umkaempft. Die Yield-Luecke (70-85 % vs. > 90 % bei organischen Substraten) kann Serienbestellungen um 1-2 Jahre verschieben. Bei 19,9 Mio. EUR Auftragseingang im Halbjahr ist das lang.",
+      "beobachten": ["Erster benannter LIDE-/TGV-Werkzeugauftrag (Absolics, SEMCO, Intel)", "Yield-Fortschritte Richtung > 90 %", "Auftragseingang Q3/Q4 aus Advanced Packaging"],
+      "verbindung_fund": "Absolics/SKC & das Glas-Substrat-Feld"
+    },
+    {
+      "ticker": "WBT", "name": "Weebit Nano", "boerse": "ASX", "gruppe": "discovery-kette",
+      "rolle": "ReRAM als Flash-Abloesung im Edge",
+      "these": "Die TI-Lizenz ist das staerkste Sachargument: embedded ReRAM ueber ausgewaehlte Produkte und Prozessknoten inkl. Technologietransfer. Silizium auf 130/65/22 nm validiert, AEC-Q100 bei 150 Grad C mit 10-Jahres-Retention gezeigt.",
+      "gegenrede": "Lizenz ist nicht Volumen: Royalties fliessen erst beim Ramp der TI-Produkte, typischerweise Jahre. FY26-Umsatz (A$15,3 Mio.) besteht weiter ueberwiegend aus Lizenzen/NRE. Parallel skaliert eMRAM (TSMC, GlobalFoundries) in denselben Knoten.",
+      "beobachten": ["Erstes TI-Produkt mit Weebit-ReRAM (Ankuendigung/Ramp)", "Weitere Tier-1-Lizenznehmer nach TI", "eMRAM-Design-Wins in Automotive als Gegenindikator"],
+      "verbindung_fund": "Texas Instruments x Weebit (Flash-Abloesung)"
+    },
+    {
+      "ticker": "LEU", "name": "Centrus Energy", "boerse": "NYSE", "gruppe": "discovery-kette",
+      "rolle": "HALEU-Anreicherung, Engpass der SMR-Kette",
+      "these": "Anreicherung ist der harte Flaschenhals der gesamten SMR-Erzaehlung. FANCOs geplante Category-II-HALEU-Fabrik bestaetigt, dass der Engpass real bleibt.",
+      "gegenrede": "Jede neue Fabrikationskapazitaet ist mittelfristig auch Wettbewerb. Und der Joulent-Fall zeigt: 2,67 GW Erdgas sind die pragmatische Antwort AUF die SMR-Verzoegerungen - kurzfristig nimmt genau das den Nuklear-Playern die Dringlichkeit.",
+      "beobachten": ["DOE-HALEU-Zuteilungen", "X-energy-Vertragsabrufe", "FANCO NRC-Lizenzantrag (Q4 2027)"],
+      "verbindung_fund": "FANCO (HALEU-Fabrik, Indiana)"
+    },
+    {
+      "ticker": "BWXT", "name": "BWX Technologies", "boerse": "NYSE", "gruppe": "discovery-kette",
+      "rolle": "Nuklearkomponenten, mPower-Lizenzgeber",
+      "these": "Applied Atomics hat exklusive Rechte am mPower-SMR-Design fuer USA/Kanada gesichert - ein totes Design kommt zurueck, mit BWXT als Komponenten-Profiteur ohne eigenes Entwicklungsrisiko.",
+      "gegenrede": "NRC-Zertifizierung dauert Jahre; Finanzierung und Team von Applied Atomics sind kaum belegt. mPower scheiterte schon einmal an den Kosten.",
+      "beobachten": ["NRC-Einreichungen von Applied Atomics", "Finanzierungsrunde oder Ankerkunde", "BWXT-Kommentare zum Lizenzmodell"],
+      "verbindung_fund": "Applied Atomics (BWXT mPower)"
+    },
+    {
+      "ticker": "CCJ", "name": "Cameco", "boerse": "NYSE/TSX", "gruppe": "discovery-kette",
+      "rolle": "Uranfoerderung, Westinghouse-Beteiligung",
+      "these": "Vorgelagerte Stufe der gesamten Nuklear-Erzaehlung, plus Westinghouse-Hebel (eVinci).",
+      "gegenrede": "Uranpreis ist makrogetrieben und laeuft nicht synchron zur KI-Erzaehlung. Der eVinci-Meilenstein ist bisher nur aus Sekundaerprofilen belegt.",
+      "beobachten": ["Westinghouse eVinci: initial criticality (Primaerquelle)", "Uran-Kontraktpreise", "SMR-Auftragsbestand"]
+    },
+    {
+      "ticker": "OKLO", "name": "Oklo", "boerse": "NYSE", "gruppe": "discovery-kette",
+      "rolle": "SMR-Entwickler mit RZ-Fokus",
+      "these": "Direktes Spiel auf Kernkraft als Rechenzentrumsstrom.",
+      "gegenrede": "Der Joulent-Fall ist die Gegenthese in Reinform: Hyperscaler nehmen 2,67 GW Gas heute statt SMR in Jahren. Genehmigungszeitraeume bleiben der limitierende Faktor.",
+      "beobachten": ["NRC-Verfahrensfortschritt", "Ob Hyperscaler Folgeprojekte mit Gas statt SMR anlegen", "Erste kommerzielle PPA"],
+      "verbindung_fund": "Joulent (National Grid, Across-the-Meter)"
+    },
+    {
+      "ticker": "SMR", "name": "NuScale Power", "boerse": "NYSE", "gruppe": "discovery-kette",
+      "rolle": "SMR-Entwickler, NRC-zertifiziertes Design",
+      "these": "Einziges NRC-designzertifiziertes SMR-Design in den USA.",
+      "gegenrede": "Zertifizierung ist nicht Auftragsbestand. Kostenprobleme haben schon einmal ein Grossprojekt gekippt.",
+      "beobachten": ["Neue Kundenvertraege", "Kostenschaetzungen pro Modul", "Gas-Konkurrenz an denselben Standorten"]
+    }
+  ],
+
+  "risiko": {
+    "stand": "2026-06-03",
+    "ampel_gesamt": "ROT",
+    "regel": "ROT wenn Wert die historische Gefahrenschwelle erreicht oder ueberschreitet. Der Tageslauf misst jeden Indikator neu und schreibt wert, stand, status und quelle fort. Ein Indikator ohne frische Messung behaelt seinen alten Wert und wird als veraltet markiert - niemals raten.",
+    "indikatoren": [
+      {"id": "marktbreite", "name": "Marktbreite-Divergenz", "metrik": "% der S&P-500-Aktien ueber 200-Tage-Linie", "schwelle": "< 60 % bei neuen Index-Allzeithochs", "wert": "53,47 %", "wert_num": 53.47, "stand": "2026-06-02", "status": "ROT", "quelle": "MacroMicro / Investing.com (S5TH)"},
+      {"id": "margin_debt", "name": "FINRA Margin Debt", "metrik": "Hebelstand; YoY-Wachstum und Netto-Kreditsaldo", "schwelle": "YoY > 30-50 %; Netto-Margin-Debt > 1,25 % der Marktkapitalisierung", "wert": "1,304 Bio. USD (YoY +53,34 %); Netto-Kredit -871 Mrd. USD", "wert_num": 1304, "stand": "2026-04-30", "status": "ROT", "quelle": "FINRA / YCharts"},
+      {"id": "ipo_welle", "name": "Aktien-Emissionswelle / Megacap-IPOs", "metrik": "Kumuliertes IPO-Volumen entzieht dem Sekundaermarkt Liquiditaet", "schwelle": "Mehrere Mega-Emissionen zeitgleich bei Bewertungsextremen", "wert": "Anthropic S-1 (965 Mrd. USD); SpaceX S-1 (1,75 Bio. USD); OpenAI-IPO immanent (852 Mrd. USD)", "stand": "2026-06-01", "status": "ROT", "quelle": "FT / Guardian"},
+      {"id": "insider", "name": "Insider-Verkaeufe Tech", "metrik": "Sell/Buy-Ratio Information Technology", "schwelle": "> 10,0x", "wert": "9,80 (Peak 19,32 am 08.04.2026)", "wert_num": 9.80, "stand": "2026-06-03", "status": "GELB", "quelle": "Fintel"},
+      {"id": "hy_oas", "name": "Kreditspreads High Yield OAS", "metrik": "ICE BofA US High Yield Option-Adjusted Spread", "schwelle": "< 300 bp = extreme Complacency; > 400 bp = Trigger", "wert": "271 bp", "wert_num": 2.71, "stand": "2026-06-02", "status": "GELB", "quelle": "FRED BAMLH0A0HYM2"},
+      {"id": "fms", "name": "Fondsmanager-Sentiment", "metrik": "BofA FMS Cash-Quote und Equity-Overweight", "schwelle": "Cash < 4,0 %; Equity-Overweight > 40 %", "wert": "Cash 3,9 %; Overweight 50 %", "wert_num": 3.9, "stand": "2026-05-31", "status": "ROT", "quelle": "BofA Fund Manager Survey"},
+      {"id": "put_call", "name": "Put/Call-Ratio", "metrik": "CBOE Equity, 5-Tage-SMA", "schwelle": "< 0,50", "wert": "0,452", "wert_num": 0.452, "stand": "2026-05-29", "status": "ROT", "quelle": "CBOE"},
+      {"id": "aaii", "name": "AAII Sentiment", "metrik": "Bull-Bear-Spread", "schwelle": "Bullish > 50 % und Bearish < 20 %", "wert": "Bullish 35,56 %; Bearish 41,85 % (Spread -6,30 %)", "wert_num": -6.30, "stand": "2026-05-28", "status": "GRUEN", "quelle": "AAII"},
+      {"id": "cape", "name": "Shiller CAPE-Ratio", "metrik": "S&P 500 CAPE", "schwelle": "> 40x", "wert": "42,0", "wert_num": 42.0, "stand": "2026-05-31", "status": "ROT", "quelle": "Shiller / multpl", "notiz": "Zweithoechster Wert in 145 Jahren; nur Dezember 1999 (44,19) war hoeher."},
+      {"id": "buffett", "name": "Buffett-Indikator", "metrik": "Gesamtmarktkapitalisierung / BIP", "schwelle": "> 2,0 Standardabweichungen ueber Trendkanal", "wert": "229,5 % (FT Wilshire 214,2 %; MacroMicro 237,76 %)", "wert_num": 229.5, "stand": "2026-05-29", "status": "ROT", "quelle": "Advisor Perspectives / MacroMicro"},
+      {"id": "capex_ratio", "name": "KI-Hyperscaler Capex-to-Revenue", "metrik": "Investitionsquote bei sinkendem FCF", "schwelle": "> 40 % der Umsaetze", "wert": "Oracle 86 %; Meta 54 %; MSFT 47 %; Google 46 %", "stand": "2026-06-03", "status": "ROT", "quelle": "CreditSights / Futurum", "notiz": "Kumulierte Hyperscaler-Capex 2026: 660-750 Mrd. USD, ~2,2 % des US-BIP."},
+      {"id": "round_tripping", "name": "Zirkulaere Finanzierung (Ouroboros)", "metrik": "Kreislaufgeschaefte zur Umsatzgenerierung", "schwelle": "Etablierung systemischer Round-Trips", "wert": "MSFT+NVDA investieren 15 Mrd. USD in Anthropic; Anthropic verpflichtet sich zu 30 Mrd. USD Abnahmen. OpenAI-Oracle 300 Mrd. USD. NVDA-CoreWeave-OpenAI-Ring. NVDA-xAI 20 Mrd. USD Lease-to-own.", "stand": "2026-05-31", "status": "ROT", "quelle": "Global Finance / CraftedCharts"},
+      {"id": "private_credit", "name": "Private-Credit-Konditionen", "metrik": "Bad-PIK-Quote und BDC-Ruecknahmen", "schwelle": "Bad PIK > 5 %; BDC-Ruecknahmen am 5-%-NAV-Cap", "wert": "Bad PIK 6,4 % (Q4 2025); BDC-Ruecknahmen 4,8 %, Inflows negativ", "wert_num": 6.4, "stand": "2026-03-31", "status": "ROT", "quelle": "Lincoln International / CAIA", "notiz": "SaaS-Kreditvolumen von 8 Mrd. USD (2015) auf > 500 Mrd. USD (Ende 2025); ~70 % ohne Covenants."}
+    ]
+  },
+
+  "exit_trigger": [
+    {
+      "prio": 1, "name": "BDC-Liquiditaetskollaps und Private-Credit-Notverkaeufe",
+      "mechanismus": "Non-traded BDCs verwalten illiquide SaaS-Kredite. Ruecknahmeantraege ueber 5 % NAV pro Quartal zwingen zum Einfrieren, das loest Zwangsliquidationen aus und blockiert die Refinanzierung des Tech-Sektors.",
+      "bedingung": "Mindestens drei grosse rated non-traded BDCs (z. B. Blue Owl Technologiefonds) ueberschreiten ueber zwei aufeinanderfolgende Quartale das 5-%-NAV-Cap, waehrend die Nettozuflusse im Private-Credit-Sektor QoQ negativ bleiben.",
+      "status": "nicht ausgeloest", "zuletzt_geprueft": "2026-06-03",
+      "pruefen_via": ["Quartalsberichte der grossen non-traded BDCs", "Lincoln International Bad-PIK-Quote", "Private-Credit-Nettozuflusse"]
+    },
+    {
+      "prio": 2, "name": "Rollover des FINRA Margin Debt",
+      "mechanismus": "Ein synchroner Rueckgang der Wertpapierkredite zeigt erzwungenes Deleveraging. Historisch der verlaesslichste Indikator fuer den Bruch des spekulativen Momentums.",
+      "bedingung": "Margin Debt faellt nach einem zyklischen Hoch um mehr als 10 % innerhalb eines gleitenden Dreimonatszeitraums, waehrend das Netto-Guthaben der Investoren unter -850 Mrd. USD verharrt.",
+      "status": "nicht ausgeloest", "zuletzt_geprueft": "2026-06-03",
+      "pruefen_via": ["FINRA Margin Statistics (monatlich)", "YCharts finra_margin_debt"],
+      "notiz": "Achtung: Februar (1,253 Bio.) und Maerz 2026 (1,221 Bio.) waren bereits ein temporaerer Rollover vom Januar-Hoch (1,28 Bio.). April 1,304 Bio. hat neues Hoch gesetzt. Dreimonatsfenster laufend nachrechnen."
+    },
+    {
+      "prio": 3, "name": "Hyperscaler-Capex-Kuerzungen und Ende des Ouroboros",
+      "mechanismus": "Wenn Investitionen nicht mehr durch Cloud-Umsatzwachstum gedeckt sind und FCF kollabiert, muessen Hardware-Budgets gekuerzt werden. Das entzieht dem zirkulaeren Modell abrupt die Liquiditaet.",
+      "bedingung": "Offizielle Reduktion der Capex-Guidance fuer das laufende oder Folgejahr um kumuliert mehr als 15 % bei mindestens zwei der fuenf fuehrenden Hyperscaler (Microsoft, Alphabet, Amazon, Meta, Oracle) im Rahmen der Quartalszahlen.",
+      "status": "nicht ausgeloest", "zuletzt_geprueft": "2026-06-03",
+      "pruefen_via": ["Earnings-Releases MSFT, GOOGL, AMZN, META, ORCL", "Capex-Guidance-Revisionen", "Freier Cashflow je Konzern"],
+      "notiz": "Fruehwarnung bereits sichtbar: Metas FCF -90 %, Microsofts FCF -28 %, Amazons FCF droht negativ zu werden."
+    },
+    {
+      "prio": 4, "name": "Ausweitung der Kreditspreads (High Yield OAS)",
+      "mechanismus": "Das Verlassen der Complacency-Zone zeigt, dass Investoren schlagartig Risikopraemien einfordern. Ging historisch jeder schweren Aktienmarktkorrektur unmittelbar voraus.",
+      "bedingung": "ICE BofA US High Yield OAS durchbricht 4,00 % (400 bp) auf Schlusskursbasis und etabliert sich ueber dem gleitenden 50-Tage-Durchschnitt.",
+      "status": "nicht ausgeloest", "zuletzt_geprueft": "2026-06-02",
+      "pruefen_via": ["FRED BAMLH0A0HYM2 (taeglich)"],
+      "notiz": "Von 271 bp auf 400 bp sind 129 bp - der am schnellsten messbare Trigger. Taeglich pruefen."
+    },
+    {
+      "prio": 5, "name": "Kollaps der Trillion-Dollar-IPO-Welle",
+      "mechanismus": "Scheitern oder massives Downpricing der Mega-IPOs signalisiert, dass die oeffentlichen Maerkte die Private-Bewertungen nicht mehr absorbieren. Fuehrt zur Abwertung aller KI-Proxy-Werte.",
+      "bedingung": "Offizieller Rueckzug des S-1-Filings von Anthropic oder OpenAI wegen unguenstiger Marktbedingungen ODER Erstnotizkurs Anthropic mehr als 25 % unter der letzten privaten Bewertung von 965 Mrd. USD.",
+      "status": "nicht ausgeloest", "zuletzt_geprueft": "2026-06-03",
+      "pruefen_via": ["SEC EDGAR S-1 Filings", "IPO-Preisspannen und Erstnotizkurse"]
+    }
+  ],
+
+  "laeufe_bewerten": [],
+  "briefings_cockpit": []
+}
